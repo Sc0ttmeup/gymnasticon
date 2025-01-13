@@ -11,7 +11,8 @@ echo "Installing Gymnasticon..."
 # Install required dependencies
 echo "Installing dependencies..."
 sudo apt-get update
-sudo apt-get install -y git nodejs npm bluetooth bluez libbluetooth-dev libudev-dev
+sudo apt-get install -y git nodejs npm bluetooth bluez libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential
+
 
 # Clone the repository
 echo "Cloning repository..."
