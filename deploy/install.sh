@@ -3,7 +3,7 @@ set -e
 
 # Repository and branch settings
 REPO_URL="https://github.com/4o4R/gymnasticon.git"
-BRANCH="main"
+BRANCH="master"
 INSTALL_DIR="/opt/gymnasticon"
 
 echo "Installing Gymnasticon..."
