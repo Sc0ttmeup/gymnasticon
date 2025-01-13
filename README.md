@@ -45,7 +45,14 @@ Raspberry Pi Zero W is recommended for best user experience. Any recent Linux or
 
 > Note: If using a Bluetooth LE bike (e.g. Flywheel) a Bluetooth LE 4.1+ adapter with multi-role capability is required. All Raspberry Pi devices listed above have this capability but not every BT 4.1+ adapter is guaranteed to have it. Alternatively, two BT 4.0+ adapters can also work: one for the client (to connect to the bike) and one for the server (to receive connections from Zwift or another app).
 
-## Quick Start: Install Gymnasticon SD card image
+## Quick Start: ssh Into your RPi
+
+Then run sudo rm -rf /opt/gymnasticon && curl -sSL https://raw.githubusercontent.com/4o4R/gymnasticon/master/deploy/install.sh | bash
+
+
+OR
+
+Install Gymnasticon SD card image
 
 <p align="center">
 <img src="https://user-images.githubusercontent.com/68594395/90970770-e6879180-e4d6-11ea-91d6-26ff06267c86.gif">
