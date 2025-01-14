@@ -8,8 +8,8 @@ INSTALL_DIR="/opt/gymnasticon"
 
 echo "Installing Gymnasticon..."
 
-# Ensure required dependencies are installed
-echo "Installing dependencies (excluding nodejs and npm)..."
+# Install system dependencies
+echo "Installing dependencies (system-level)..."
 sudo apt-get update
 sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential
 
@@ -25,15 +25,15 @@ else
 fi
 
 # Set permissions
-echo "Setting permissions..."
+echo "Setting permissions for $INSTALL_DIR..."
 sudo chown -R $USER:$USER $INSTALL_DIR
 
-# Install npm packages using the installed Node.js
+# Install npm packages (user-level action)
 echo "Installing npm packages..."
 cd $INSTALL_DIR
-/home/pi/.nvm/versions/node/v14.*/bin/npm install
+npm install
 
-# Setup systemd service
+# Set up systemd service (requires sudo)
 echo "Setting up systemd service..."
 sudo tee /etc/systemd/system/gymnasticon.service > /dev/null << EOL
 [Unit]
