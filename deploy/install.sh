@@ -21,7 +21,7 @@ sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-
 # Install Node.js for ARMv6
 if [[ "$FORCE_INSTALL" == "true" ]] || ! command -v node > /dev/null || ! command -v npm > /dev/null; then
     echo "Node.js and npm are not installed or reinstallation is forced. Installing for ARMv6..."
-    NODE_VERSION="14.21.3"  # Specify your desired Node.js version
+    NODE_VERSION="14.21.3"
     NODE_DISTRO="linux-armv6l"
     NODE_ARCHIVE="node-v$NODE_VERSION-$NODE_DISTRO.tar.xz"
     NODE_URL="https://unofficial-builds.nodejs.org/download/release/v$NODE_VERSION/$NODE_ARCHIVE"
@@ -65,6 +65,7 @@ sudo chown -R $USER:$USER $INSTALL_DIR
 echo "Installing npm packages..."
 cd $INSTALL_DIR
 npm install
+npm rebuild
 
 # Set up systemd service
 echo "Setting up systemd service with the known good configuration..."
@@ -81,7 +82,7 @@ Environment=PATH=/usr/local/bin:/opt/gymnasticon/node_modules/.bin
 WorkingDirectory=$INSTALL_DIR
 User=pi
 Group=pi
-ExecStart=/usr/local/bin/node $INSTALL_DIR/src/gymnasticon.js
+ExecStart=/usr/local/bin/node $INSTALL_DIR/src/index.js
 RestartSec=1
 Restart=always
 
