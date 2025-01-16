@@ -62,26 +62,13 @@ echo "Installing npm packages..."
 cd $INSTALL_DIR
 npm install
 
-# Set up systemd service
-echo "Setting up systemd service..."
-sudo tee /etc/systemd/system/gymnasticon.service > /dev/null <<EOL
-[Unit]
-Description=Gymnasticon Service
-After=bluetooth.target
-Wants=bluetooth.target
-
-[Service]
-ExecStart=/usr/local/bin/node $INSTALL_DIR/src/gymnasticon.js
-WorkingDirectory=$INSTALL_DIR
-Restart=always
-User=$USER
-
-[Install]
-WantedBy=multi-user.target
-EOL
+# Deploy known good systemd service file
+echo "Setting up systemd service with the known good configuration..."
+sudo cp $INSTALL_DIR/deploy/gymnasticon.service /etc/systemd/system/gymnasticon.service
 
 # Enable and start the service
 echo "Enabling and starting the Gymnasticon service..."
+sudo systemctl daemon-reload
 sudo systemctl enable gymnasticon
 sudo systemctl start gymnasticon
 
