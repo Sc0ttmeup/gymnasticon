@@ -67,7 +67,7 @@ cd $INSTALL_DIR
 npm install
 npm rebuild
 # Set up systemd service
-echo "Setting up systemd service with the known good configuration..."
+
 sudo tee /etc/systemd/system/gymnasticon.service > /dev/null <<EOL
 [Unit]
 Description=Gymnasticon
@@ -81,7 +81,8 @@ Environment=PATH=/usr/local/bin:/opt/gymnasticon/node_modules/.bin
 WorkingDirectory=$INSTALL_DIR
 User=pi
 Group=pi
-ExecStart=/usr/local/bin/node $INSTALL_DIR/src/gymnasticon.js
+
+ExecStart=/usr/local/bin/node $INSTALL_DIR/src/cli.js
 RestartSec=1
 Restart=always
 
@@ -90,8 +91,8 @@ NoNewPrivileges=true
 
 [Install]
 WantedBy=multi-user.target
-EOL
-# Enable and start the service
+
+EOL# Enable and start the service
 echo "Enabling and starting the Gymnasticon service..."
 sudo systemctl daemon-reload
 sudo systemctl enable gymnasticon
