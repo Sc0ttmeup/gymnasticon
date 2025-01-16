@@ -6,11 +6,11 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=PATH=/opt/gymnasticon/node/bin
 WorkingDirectory=/opt/gymnasticon
 User=pi
 Group=pi
-ExecStart=/usr/local/bin/node /opt/gymnasticon/src/gymnasticon.js
+ExecStart=/opt/gymnasticon/node/bin/gymnasticon
 RestartSec=1
 Restart=always
 
