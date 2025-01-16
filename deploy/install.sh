@@ -11,16 +11,36 @@ echo "Installing Gymnasticon..."
 # Install system dependencies
 echo "Installing dependencies (system-level)..."
 sudo apt-get update
-sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential curl
+sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential curl xz-utils
 
 # Install Node.js and npm for ARMv6
 if ! command -v node > /dev/null || ! command -v npm > /dev/null; then
     echo "Node.js and npm are not installed. Installing for ARMv6..."
     NODE_VERSION="14.21.3"  # Set desired version
     NODE_DISTRO="linux-armv6l"
-    curl -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-$NODE_DISTRO.tar.xz
-    sudo tar -xJf node-v$NODE_VERSION-$NODE_DISTRO.tar.xz -C /usr/local --strip-components=1
-    rm node-v$NODE_VERSION-$NODE_DISTRO.tar.xz
+    NODE_ARCHIVE="node-v$NODE_VERSION-$NODE_DISTRO.tar.xz"
+    NODE_URL="https://unofficial-builds.nodejs.org/download/release/v$NODE_VERSION/$NODE_ARCHIVE"
+
+    # Download the Node.js binary
+    echo "Downloading Node.js from $NODE_URL..."
+    curl -O $NODE_URL
+
+    # Verify the download
+    if [ ! -f $NODE_ARCHIVE ]; then
+        echo "Failed to download Node.js archive. Exiting."
+        exit 1
+    fi
+
+    # Extract the archive
+    echo "Extracting Node.js..."
+    sudo tar -xJf $NODE_ARCHIVE -C /usr/local --strip-components=1 || {
+        echo "Extraction failed. Check the archive file."
+        rm -f $NODE_ARCHIVE
+        exit 1
+    }
+
+    # Clean up
+    rm -f $NODE_ARCHIVE
 else
     echo "Node.js and npm are already installed."
 fi
