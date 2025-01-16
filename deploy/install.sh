@@ -13,11 +13,14 @@ echo "Installing dependencies (system-level)..."
 sudo apt-get update
 sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential curl
 
-# Install Node.js and npm (if not installed)
+# Install Node.js and npm for ARMv6
 if ! command -v node > /dev/null || ! command -v npm > /dev/null; then
-    echo "Node.js and npm are not installed. Installing..."
-    curl -fsSL https://deb.nodesource.com/setup_14.x | sudo -E bash -
-    sudo apt-get install -y nodejs
+    echo "Node.js and npm are not installed. Installing for ARMv6..."
+    NODE_VERSION="14.21.3"  # Set desired version
+    NODE_DISTRO="linux-armv6l"
+    curl -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-$NODE_DISTRO.tar.xz
+    sudo tar -xJf node-v$NODE_VERSION-$NODE_DISTRO.tar.xz -C /usr/local --strip-components=1
+    rm node-v$NODE_VERSION-$NODE_DISTRO.tar.xz
 else
     echo "Node.js and npm are already installed."
 fi
@@ -37,12 +40,12 @@ fi
 echo "Setting permissions for $INSTALL_DIR..."
 sudo chown -R $USER:$USER $INSTALL_DIR
 
-# Install npm packages (user-level action)
+# Install npm packages
 echo "Installing npm packages..."
 cd $INSTALL_DIR
 npm install
 
-# Set up systemd service (requires sudo)
+# Set up systemd service
 echo "Setting up systemd service..."
 sudo tee /etc/systemd/system/gymnasticon.service > /dev/null << EOL
 [Unit]
