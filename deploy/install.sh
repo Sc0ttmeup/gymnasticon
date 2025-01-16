@@ -5,6 +5,7 @@ set -e
 REPO_URL="https://github.com/4o4R/gymnasticon.git"
 BRANCH="master"
 INSTALL_DIR="/opt/gymnasticon"
+FORCE_INSTALL=${1:-false}
 
 echo "Installing Gymnasticon..."
 
@@ -14,8 +15,8 @@ sudo apt-get update
 sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential curl
 
 # Install Node.js for ARMv6
-if ! command -v node > /dev/null || ! command -v npm > /dev/null; then
-    echo "Node.js and npm are not installed. Installing for ARMv6..."
+if [[ "$FORCE_INSTALL" == "true" ]] || ! command -v node > /dev/null || ! command -v npm > /dev/null; then
+    echo "Node.js and npm are not installed or reinstallation is forced. Installing for ARMv6..."
     NODE_VERSION="14.21.3"  # Specify your desired Node.js version
     NODE_DISTRO="linux-armv6l"
     NODE_ARCHIVE="node-v$NODE_VERSION-$NODE_DISTRO.tar.xz"
@@ -25,14 +26,7 @@ if ! command -v node > /dev/null || ! command -v npm > /dev/null; then
     echo "Downloading Node.js from $NODE_URL..."
     curl -o $NODE_ARCHIVE $NODE_URL
 
-    # Check if the file is downloaded
-    if [ ! -f $NODE_ARCHIVE ]; then
-        echo "Failed to download Node.js. Exiting."
-        exit 1
-    fi
-
     # Validate the file format
-    echo "Validating the Node.js archive..."
     if ! file $NODE_ARCHIVE | grep -q "XZ compressed data"; then
         echo "Invalid Node.js archive format. Exiting."
         rm -f $NODE_ARCHIVE
@@ -41,13 +35,7 @@ if ! command -v node > /dev/null || ! command -v npm > /dev/null; then
 
     # Extract Node.js
     echo "Extracting Node.js..."
-    sudo tar -xJf $NODE_ARCHIVE -C /usr/local --strip-components=1 || {
-        echo "Extraction failed. Check the archive file."
-        rm -f $NODE_ARCHIVE
-        exit 1
-    }
-
-    # Clean up
+    sudo tar -xJf $NODE_ARCHIVE -C /usr/local --strip-components=1
     rm -f $NODE_ARCHIVE
     echo "Node.js installed successfully!"
 else
@@ -76,15 +64,15 @@ npm install
 
 # Set up systemd service
 echo "Setting up systemd service..."
-sudo tee /etc/systemd/system/gymnasticon.service > /dev/null << EOL
+sudo tee /etc/systemd/system/gymnasticon.service > /dev/null <<EOL
 [Unit]
 Description=Gymnasticon Service
 After=bluetooth.target
 Wants=bluetooth.target
 
 [Service]
-ExecStart=/usr/local/bin/node /opt/gymnasticon/src/gymnasticon.js
-WorkingDirectory=/opt/gymnasticon
+ExecStart=/usr/local/bin/node $INSTALL_DIR/src/gymnasticon.js
+WorkingDirectory=$INSTALL_DIR
 Restart=always
 User=$USER
 
