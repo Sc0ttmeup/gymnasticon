@@ -45,7 +45,62 @@ Raspberry Pi Zero W is recommended for best user experience. Any recent Linux or
 
 > Note: If using a Bluetooth LE bike (e.g. Flywheel) a Bluetooth LE 4.1+ adapter with multi-role capability is required. All Raspberry Pi devices listed above have this capability but not every BT 4.1+ adapter is guaranteed to have it. Alternatively, two BT 4.0+ adapters can also work: one for the client (to connect to the bike) and one for the server (to receive connections from Zwift or another app).
 
-## Quick Start: ssh Into your RPi
+## Quick Start: Quick Start: Install Gymnasticon on Raspberry Pi
+
+Preparation
+
+Prepare the OS:
+
+Use the Raspberry Pi Imager on another computer to flash your SD card with Raspbian Buster Lite (2021 version). This version is required for compatibility with Node.js ARMv6 builds.
+
+You can download the OS image from Raspberry Pi Archives.
+
+Insert the SD card:
+
+Insert the prepared SD card into your Raspberry Pi and power it on.
+
+Single Command Installation
+
+SSH into your Raspberry Pi and run the following command:
+
+sudo rm -rf /opt/gymnasticon && nohup bash -c "curl -sSL https://raw.githubusercontent.com/4o4R/gymnasticon/master/deploy/install.sh | bash -s true" > install.log 2>&1 &
+
+This command will:
+
+Download and execute the installation script.
+
+Force reinstall Node.js (if necessary).
+
+Install Gymnasticon and configure it to run as a service.
+
+You can monitor the installation progress by checking the logs:
+
+tail -f install.log
+
+Test Gymnasticon
+
+Once the installation completes, Gymnasticon should be running as a service. You can check the status:
+
+sudo systemctl status gymnasticon
+
+To monitor real-time logs:
+
+journalctl -u gymnasticon -f
+
+Connect your bike and open Zwift or any supported app to verify functionality.
+
+Revert to Default Configuration
+
+If you need to reset Gymnasticon for another bike or adjust the configuration, edit the config file:
+
+sudo nano /opt/gymnasticon/gymnasticon.json
+
+After making changes, restart the service:
+
+sudo systemctl restart gymnasticon
+
+
+ssh Into your RPi
 
 Then run sudo rm -rf /opt/gymnasticon && curl -sSL https://raw.githubusercontent.com/4o4R/gymnasticon/master/deploy/install.sh | bash
 
