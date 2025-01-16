@@ -11,7 +11,16 @@ echo "Installing Gymnasticon..."
 # Install system dependencies
 echo "Installing dependencies (system-level)..."
 sudo apt-get update
-sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential
+sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential curl
+
+# Install Node.js and npm (if not installed)
+if ! command -v node > /dev/null || ! command -v npm > /dev/null; then
+    echo "Node.js and npm are not installed. Installing..."
+    curl -fsSL https://deb.nodesource.com/setup_14.x | sudo -E bash -
+    sudo apt-get install -y nodejs
+else
+    echo "Node.js and npm are already installed."
+fi
 
 # Clone the repository
 if [ ! -d "$INSTALL_DIR" ]; then
@@ -42,10 +51,11 @@ After=bluetooth.target
 Wants=bluetooth.target
 
 [Service]
-ExecStart=/home/pi/.nvm/versions/node/v14.*/bin/node /opt/gymnasticon/src/gymnasticon.js
-WorkingDirectory=/opt/gymnasticon
+ExecStart=$(which node) $INSTALL_DIR/src/gymnasticon.js
+WorkingDirectory=$INSTALL_DIR
 Restart=always
 User=$USER
+Environment=NODE_ENV=production
 
 [Install]
 WantedBy=multi-user.target
@@ -53,6 +63,7 @@ EOL
 
 # Enable and start the service
 echo "Enabling and starting the Gymnasticon service..."
+sudo systemctl daemon-reload
 sudo systemctl enable gymnasticon
 sudo systemctl start gymnasticon
 
