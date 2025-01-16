@@ -7,10 +7,14 @@ BRANCH="master"
 INSTALL_DIR="/opt/gymnasticon"
 FORCE_INSTALL=${1:-false}
 
-echo "Installing Gymnasticon..."
+LOG_FILE="install.log"
+echo "Starting installation..." | tee -a $LOG_FILE
+
+# Redirect all output to the log file
+exec > >(tee -a $LOG_FILE) 2>&1
 
 # Install system dependencies
-echo "Installing dependencies (system-level)..."
+echo "Installing system dependencies..."
 sudo apt-get update
 sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential curl
 
@@ -62,9 +66,31 @@ echo "Installing npm packages..."
 cd $INSTALL_DIR
 npm install
 
-# Deploy known good systemd service file
+# Set up systemd service
 echo "Setting up systemd service with the known good configuration..."
-sudo cp $INSTALL_DIR/deploy/gymnasticon.service /etc/systemd/system/gymnasticon.service
+sudo tee /etc/systemd/system/gymnasticon.service > /dev/null <<EOL
+[Unit]
+Description=Gymnasticon
+After=bluetooth.target
+Requires=bluetooth.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Environment=PATH=/usr/local/bin:/opt/gymnasticon/node_modules/.bin
+WorkingDirectory=$INSTALL_DIR
+User=pi
+Group=pi
+ExecStart=/usr/local/bin/node $INSTALL_DIR/src/gymnasticon.js
+RestartSec=1
+Restart=always
+
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
+EOL
 
 # Enable and start the service
 echo "Enabling and starting the Gymnasticon service..."
