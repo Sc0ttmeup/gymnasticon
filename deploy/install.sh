@@ -5,10 +5,6 @@ set -e
 REPO_URL="https://github.com/4o4R/gymnasticon.git"
 BRANCH="master"
 INSTALL_DIR="/opt/gymnasticon"
-NODE_VERSION="14.21.3"
-NODE_DISTRO="linux-armv6l"
-NODE_ARCHIVE="node-v$NODE_VERSION-$NODE_DISTRO.tar.xz"
-NODE_URL="https://unofficial-builds.nodejs.org/download/release/v$NODE_VERSION/$NODE_ARCHIVE"
 LOG_FILE="/home/pi/install.log"
 
 # Start logging
@@ -28,12 +24,6 @@ sudo systemctl daemon-reload
 echo "Installing system dependencies..."
 sudo apt-get update
 sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential curl
-
-# Install Node.js
-echo "Installing Node.js version $NODE_VERSION..."
-curl -O $NODE_URL
-sudo tar -xJf $NODE_ARCHIVE -C /usr/local --strip-components=1
-rm -f $NODE_ARCHIVE
 
 # Clone the Gymnasticon repository
 echo "Cloning the Gymnasticon repository..."
