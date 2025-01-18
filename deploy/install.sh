@@ -6,8 +6,8 @@ REPO_URL="https://github.com/4o4R/gymnasticon.git"
 BRANCH="master"
 INSTALL_DIR="/opt/gymnasticon"
 FORCE_INSTALL=${1:-false}
-
 LOG_FILE="install.log"
+
 echo "Starting installation..." | tee -a $LOG_FILE
 
 # Redirect all output to the log file
@@ -66,8 +66,8 @@ echo "Installing npm packages..."
 cd $INSTALL_DIR
 npm install
 npm rebuild
-# Set up systemd service
 
+# Set up systemd service
 sudo tee /etc/systemd/system/gymnasticon.service > /dev/null <<EOL
 [Unit]
 Description=Gymnasticon
@@ -81,8 +81,7 @@ Environment=PATH=/usr/local/bin:/opt/gymnasticon/node_modules/.bin
 WorkingDirectory=$INSTALL_DIR
 User=pi
 Group=pi
-
-ExecStart=/usr/local/bin/node $INSTALL_DIR/src/cli.js
+ExecStart=/usr/local/bin/node $INSTALL_DIR/src/gymnasticon.js
 RestartSec=1
 Restart=always
 
@@ -91,11 +90,12 @@ NoNewPrivileges=true
 
 [Install]
 WantedBy=multi-user.target
+EOL
 
-EOL# Enable and start the service
+# Enable and start the service
 echo "Enabling and starting the Gymnasticon service..."
 sudo systemctl daemon-reload
 sudo systemctl enable gymnasticon
-sudo systemctl start gymnasticon
+sudo systemctl restart gymnasticon
 
 echo "Installation complete! Gymnasticon is now running as a service."
