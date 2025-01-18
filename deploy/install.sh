@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# Configuration
+# Repository and branch settings
 REPO_URL="https://github.com/4o4R/gymnasticon.git"
 BRANCH="master"
 INSTALL_DIR="/opt/gymnasticon"
@@ -12,7 +12,7 @@ exec > >(tee -a $LOG_FILE) 2>&1
 
 echo "Starting installation of Gymnasticon..."
 
-# Clean up previous installation
+# Remove previous installations if any
 echo "Removing previous installations..."
 sudo systemctl stop gymnasticon || true
 sudo systemctl disable gymnasticon || true
@@ -26,12 +26,21 @@ sudo apt-get update
 sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential curl
 
 # Clone the Gymnasticon repository
-echo "Cloning the Gymnasticon repository..."
-git clone --depth 1 --branch $BRANCH $REPO_URL $INSTALL_DIR
+if [ ! -d "$INSTALL_DIR" ]; then
+    echo "Cloning repository..."
+    sudo mkdir -p $INSTALL_DIR
+    sudo chown $USER:$USER $INSTALL_DIR
+    git clone --depth 1 --branch $BRANCH $REPO_URL $INSTALL_DIR
+else
+    echo "Repository already exists at $INSTALL_DIR. Pulling latest changes..."
+    cd $INSTALL_DIR
+    sudo git reset --hard
+    sudo git pull origin $BRANCH
+fi
 
 # Set permissions
 echo "Setting permissions for $INSTALL_DIR..."
-sudo chown -R pi:pi $INSTALL_DIR
+sudo chown -R $USER:$USER $INSTALL_DIR
 
 # Install npm packages
 echo "Installing npm packages..."
@@ -39,7 +48,7 @@ cd $INSTALL_DIR
 npm install
 npm rebuild
 
-# Configure the systemd service
+# Set up systemd service
 echo "Setting up systemd service..."
 sudo tee /etc/systemd/system/gymnasticon.service > /dev/null <<EOL
 [Unit]
@@ -64,7 +73,7 @@ NoNewPrivileges=true
 WantedBy=multi-user.target
 EOL
 
-# Start the service
+# Enable and start the service
 echo "Enabling and starting the Gymnasticon service..."
 sudo systemctl daemon-reload
 sudo systemctl enable gymnasticon
