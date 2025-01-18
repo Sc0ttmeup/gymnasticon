@@ -6,7 +6,7 @@ REPO_URL="https://github.com/4o4R/gymnasticon.git"
 BRANCH="master"
 INSTALL_DIR="/opt/gymnasticon"
 FORCE_INSTALL=${1:-false}
-LOG_FILE="install.log"
+LOG_FILE="/home/pi/install.log"
 
 echo "Starting installation..." | tee -a $LOG_FILE
 
@@ -59,43 +59,20 @@ fi
 
 # Set permissions
 echo "Setting permissions for $INSTALL_DIR..."
-sudo chown -R $USER:$USER $INSTALL_DIR
+sudo chown -R pi:pi $INSTALL_DIR
 
 # Install npm packages
 echo "Installing npm packages..."
 cd $INSTALL_DIR
-npm install
+npm install --no-audit
 npm rebuild
 
-# Set up systemd service
-sudo tee /etc/systemd/system/gymnasticon.service > /dev/null <<EOL
-[Unit]
-Description=Gymnasticon
-After=bluetooth.target
-Requires=bluetooth.target
-StartLimitIntervalSec=0
+# Set up systemd service using the known-good configuration
+sudo cp $INSTALL_DIR/deploy/gymnasticon.service /etc/systemd/system/gymnasticon.service
 
-[Service]
-Type=simple
-Environment=PATH=/usr/local/bin:/opt/gymnasticon/node_modules/.bin
-WorkingDirectory=$INSTALL_DIR
-User=pi
-Group=pi
-ExecStart=/usr/local/bin/node $INSTALL_DIR/src/gymnasticon.js
-RestartSec=1
-Restart=always
-
-AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
-NoNewPrivileges=true
-
-[Install]
-WantedBy=multi-user.target
-EOL
-
-# Enable and start the service
 echo "Enabling and starting the Gymnasticon service..."
 sudo systemctl daemon-reload
 sudo systemctl enable gymnasticon
-sudo systemctl restart gymnasticon
+sudo systemctl start gymnasticon
 
 echo "Installation complete! Gymnasticon is now running as a service."
