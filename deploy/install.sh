@@ -63,7 +63,7 @@ Environment=PATH=/usr/local/bin:/opt/gymnasticon/node_modules/.bin
 WorkingDirectory=$INSTALL_DIR
 User=pi
 Group=pi
-ExecStart=/usr/local/bin/node $INSTALL_DIR/src/cli.js
+ExecStart=/usr/local/bin/node $INSTALL_DIR/src/app/cli.js
 RestartSec=1
 Restart=always
 AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
