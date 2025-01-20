@@ -76,12 +76,19 @@ cd $INSTALL_DIR || exit 1
 
 # Repository setup
 git clone --depth 1 --branch $BRANCH $REPO_URL .
-
 # Dependencies and build
 show_progress "6/7" "Installing dependencies..."
+cd $INSTALL_DIR
+# Validate package.json before proceeding
+jq '.' package.json > /dev/null || {
+    echo "Invalid package.json detected. Attempting to fix..."
+    # Keep only the first JSON object
+    sed -n '1,/}/p' package.json > package.json.tmp
+    mv package.json.tmp package.json
+}
+
 npm install --no-audit --no-fund
 NODE_ENV=production npm run build
-
 # Verify build
 node -c lib/app/cli.js
 
