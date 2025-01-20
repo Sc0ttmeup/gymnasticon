@@ -31,6 +31,11 @@ if [ ! -d "$INSTALL_DIR" ]; then
     sudo mkdir -p $INSTALL_DIR
     sudo chown $USER:$USER $INSTALL_DIR
     git clone --depth 1 --branch $BRANCH $REPO_URL $INSTALL_DIR
+    
+    # Add ES module support to package.json
+    echo "Configuring ES module support..."
+    cd $INSTALL_DIR
+    sed -i '/"dependencies": {/i \  "type": "module",' package.json
 else
     echo "Repository already exists at $INSTALL_DIR. Pulling latest changes..."
     cd $INSTALL_DIR
