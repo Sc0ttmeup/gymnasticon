@@ -81,26 +81,44 @@ git clone --depth 1 --branch $BRANCH $REPO_URL .
 # Dependencies and build
 show_progress "6/7" "Installing dependencies..."
 
-# Install global dependencies
+# Install global dependencies first
 npm install -g @babel/cli @babel/core
 
 # Install project dependencies
 npm install --no-audit --no-fund
 
-# Ensure lib directory exists
-mkdir -p lib/app
-
-# Run build with verbose output
-NODE_ENV=production npx babel src -d lib --verbose
-
-# Verify build output
-if [ ! -f "lib/app/cli.js" ]; then
-    echo "Build failed - cli.js not generated"
-    exit 1
+# Verify source directory exists
+if [ ! -d "src" ]; then
+    git clone --depth 1 --branch $BRANCH $REPO_URL src_temp
+    mv src_temp/src .
+    rm -rf src_temp
 fi
 
-# Test the built file
-node -c lib/app/cli.js
+# Create necessary directories
+mkdir -p lib/app
+
+# Install babel dependencies locally to ensure they're available
+npm install --save-dev @babel/cli @babel/core @babel/preset-env
+
+# Configure babel
+echo '{
+  "presets": ["@babel/preset-env"]
+}' > .babelrc
+
+# Run babel build with specific source file
+NODE_ENV=production npx babel src --out-dir lib --verbose
+
+# Verify the output
+if [ -f "lib/app/cli.js" ]; then
+    echo "Build successful - cli.js generated"
+    # Test the file
+    node -c lib/app/cli.js
+else
+    echo "Build failed - cli.js not found"
+    ls -la lib/app/
+    ls -la src/app/
+    exit 1
+fi
 
 # Set permissions
 sudo chown -R $USER:$USER $INSTALL_DIR
@@ -139,6 +157,7 @@ sudo systemctl start gymnasticon
 # Verify service
 timeout 30 systemctl status gymnasticon || {
     echo "Service failed to start properly"
+    journalctl -u gymnasticon -n 50
     exit 1
 }
 
