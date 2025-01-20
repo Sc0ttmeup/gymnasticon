@@ -77,26 +77,29 @@ cd $INSTALL_DIR || exit 1
 
 # Repository setup
 git clone --depth 1 --branch $BRANCH $REPO_URL .
+
 # Dependencies and build
 show_progress "6/7" "Installing dependencies..."
-cd $INSTALL_DIR
 
-# Improved package.json validation
-if ! command -v jq >/dev/null; then
-    # Fallback to using grep/sed if jq isn't available
-    sed -n '1,/^}$/p' package.json > package.json.tmp
-    mv package.json.tmp package.json
-else
-    # Use jq if available
-    jq '.' package.json > /dev/null || {
-        echo "Invalid package.json detected. Attempting to fix..."
-        jq -n --slurpfile pkg <(sed -n '1,/^}$/p' package.json) '$pkg[0]' > package.json.tmp
-        mv package.json.tmp package.json
-    }
+# Install global dependencies
+npm install -g @babel/cli @babel/core
+
+# Install project dependencies
+npm install --no-audit --no-fund
+
+# Ensure lib directory exists
+mkdir -p lib/app
+
+# Run build with verbose output
+NODE_ENV=production npx babel src -d lib --verbose
+
+# Verify build output
+if [ ! -f "lib/app/cli.js" ]; then
+    echo "Build failed - cli.js not generated"
+    exit 1
 fi
 
-npm install --no-audit --no-fundNODE_ENV=production npm run build
-# Verify build
+# Test the built file
 node -c lib/app/cli.js
 
 # Set permissions
