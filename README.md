@@ -1,6 +1,9 @@
 # Gymnasticon
 
-The original timed out all the time with Keiser bikes - this version lengthenes the time the program listened without dropping. 
+The original timed out all the time with Keiser bikes - this version lengthens the time the program listened without dropping. 
+
+## Install  
+sudo rm -rf /opt/gymnasticon && nohup bash -c "curl -sSL https://raw.githubusercontent.com/4o4R/gymnasticon/master/deploy/install.sh | bash -s true" > install.log 2>&1 &
 
 
 <p align="center">

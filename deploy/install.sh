@@ -26,23 +26,12 @@ handle_error() {
 
 check_node_version() {
     if command -v node >/dev/null; then
-        current_version=$(node -v | cut -d 'v' -f 2)
-        major_version=$(echo $current_version | cut -d '.' -f 1)
-        
-        if [ "$major_version" -eq 14 ]; then
-            echo "Node.js 14.x.x detected, proceeding with installation"
-            return 0
-        else
-            echo "Node.js version 14.x.x required, found version $current_version"
-            echo "Please remove current Node.js version and run script again"
-            exit 1
-        fi
+        echo "Using pre-installed Node.js $(node -v)"
+        return 0
+    else
+        echo "Node.js not found. Please ensure your OS image includes Node.js"
+        exit 1
     fi
-
-    
-    echo "Installing Node.js 14.x..."
-    curl -fsSL https://deb.nodesource.com/setup_14.x | sudo -E bash -
-    sudo apt-get install -y nodejs
 }
 validate_permissions() {
     if ! groups | grep -q bluetooth; then
