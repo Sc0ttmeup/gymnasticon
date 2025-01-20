@@ -64,13 +64,18 @@ sudo apt-get install -y \
     libusb-1.0-0-dev=2:1.0.22* \
     build-essential=12.6* \
     curl=7.64.0*
-
 # Install Node.js
 show_progress "4/7" "Installing Node.js..."
 
-
 check_node_version
 
+# Install npm packages with detailed progress
+show_progress "6/7" "Installing dependencies..."
+cd $INSTALL_DIR
+echo "Installing npm packages..."
+npm install --no-audit --no-fund --loglevel=info | grep -E "added|removed|changed|finished"
+echo "Building application..."
+npm run build --loglevel=info | grep -E "webpack|asset|entrypoint|chunks|modules"
 # Clone repository
 show_progress "5/7" "Setting up Gymnasticon..."
 if [ ! -d "$INSTALL_DIR" ]; then
