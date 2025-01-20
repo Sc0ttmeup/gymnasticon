@@ -62,7 +62,8 @@ sudo apt-get install -y \
     libudev-dev=241* \
     libusb-1.0-0-dev=2:1.0.22* \
     build-essential=12.6* \
-    curl=7.64.0*
+    curl=7.64.0* \
+    jq
 
 # Node.js setup
 show_progress "4/7" "Installing Node.js..."
@@ -79,16 +80,22 @@ git clone --depth 1 --branch $BRANCH $REPO_URL .
 # Dependencies and build
 show_progress "6/7" "Installing dependencies..."
 cd $INSTALL_DIR
-# Validate package.json before proceeding
-jq '.' package.json > /dev/null || {
-    echo "Invalid package.json detected. Attempting to fix..."
-    # Keep only the first JSON object
-    sed -n '1,/}/p' package.json > package.json.tmp
-    mv package.json.tmp package.json
-}
 
-npm install --no-audit --no-fund
-NODE_ENV=production npm run build
+# Improved package.json validation
+if ! command -v jq >/dev/null; then
+    # Fallback to using grep/sed if jq isn't available
+    sed -n '1,/^}$/p' package.json > package.json.tmp
+    mv package.json.tmp package.json
+else
+    # Use jq if available
+    jq '.' package.json > /dev/null || {
+        echo "Invalid package.json detected. Attempting to fix..."
+        jq -n --slurpfile pkg <(sed -n '1,/^}$/p' package.json) '$pkg[0]' > package.json.tmp
+        mv package.json.tmp package.json
+    }
+fi
+
+npm install --no-audit --no-fundNODE_ENV=production npm run build
 # Verify build
 node -c lib/app/cli.js
 
