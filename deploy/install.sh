@@ -58,14 +58,12 @@ curl -fsSL https://deb.nodesource.com/setup_14.x | sudo -E bash -
 sudo apt-get install -y nodejs
 check_node_version
 
-# Clone and configure repository
+# Clone repository
 show_progress "5/7" "Setting up Gymnasticon..."
 if [ ! -d "$INSTALL_DIR" ]; then
     sudo mkdir -p $INSTALL_DIR
     sudo chown $USER:$USER $INSTALL_DIR
     git clone --depth 1 --branch $BRANCH $REPO_URL $INSTALL_DIR
-    cd $INSTALL_DIR
-    sed -i '/"dependencies": {/i \  "type": "module",' package.json
 else
     cd $INSTALL_DIR
     sudo git reset --hard
@@ -80,7 +78,7 @@ validate_permissions
 show_progress "6/7" "Installing dependencies..."
 cd $INSTALL_DIR
 npm install --no-audit --no-fund --loglevel=error
-npm rebuild --no-audit --no-fund --loglevel=error
+npm run build
 
 # Set up systemd service
 show_progress "7/7" "Configuring service..."
@@ -97,7 +95,7 @@ Environment=PATH=/usr/local/bin:/opt/gymnasticon/node_modules/.bin
 WorkingDirectory=$INSTALL_DIR
 User=pi
 Group=pi
-ExecStart=/usr/local/bin/node $INSTALL_DIR/src/app/cli.js
+ExecStart=/usr/local/bin/node $INSTALL_DIR/lib/app/cli.js
 RestartSec=1
 Restart=always
 AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
