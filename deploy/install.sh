@@ -79,42 +79,40 @@ cd $INSTALL_DIR || exit 1
 git clone --depth 1 --branch $BRANCH $REPO_URL .
 
 # Dependencies and build
-show_progress "6/7" "Installing dependencies..."
+show_progress "6/7" "Checking existing installation..."
 
-# Install global dependencies first
-npm install -g @babel/cli @babel/core
+# Check if lib/app/cli.js already exists and is valid
+if [ -f "lib/app/cli.js" ] && node -c lib/app/cli.js > /dev/null 2>&1; then
+    echo "Valid existing installation found, skipping build process"
+else
+    echo "Building from source..."
+    # Install global dependencies first
+    npm install -g @babel/cli @babel/core
 
-# Install project dependencies
-npm install --no-audit --no-fund
+    # Install project dependencies
+    npm install --no-audit --no-fund
 
-# Verify source directory exists
-if [ ! -d "src" ]; then
-    git clone --depth 1 --branch $BRANCH $REPO_URL src_temp
-    mv src_temp/src .
-    rm -rf src_temp
+    # Create necessary directories
+    mkdir -p lib/app
+
+    # Install babel dependencies locally
+    npm install --save-dev @babel/cli @babel/core @babel/preset-env
+
+    # Configure babel
+    echo '{
+      "presets": ["@babel/preset-env"]
+    }' > .babelrc
+
+    # Run babel build
+    NODE_ENV=production npx babel src --out-dir lib --verbose
 fi
-
-# Create necessary directories
-mkdir -p lib/app
-
-# Install babel dependencies locally to ensure they're available
-npm install --save-dev @babel/cli @babel/core @babel/preset-env
-
-# Configure babel
-echo '{
-  "presets": ["@babel/preset-env"]
-}' > .babelrc
-
-# Run babel build with specific source file
-NODE_ENV=production npx babel src --out-dir lib --verbose
 
 # Verify the output
 if [ -f "lib/app/cli.js" ]; then
-    echo "Build successful - cli.js generated"
-    # Test the file
+    echo "Build verification successful"
     node -c lib/app/cli.js
 else
-    echo "Build failed - cli.js not found"
+    echo "Build verification failed"
     ls -la lib/app/
     ls -la src/app/
     exit 1
