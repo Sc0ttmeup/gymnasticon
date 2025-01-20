@@ -86,13 +86,13 @@ fi
 # Set permissions and validate
 sudo chown -R $USER:$USER $INSTALL_DIR
 validate_permissions
-
-# Install npm packages
+# Install npm packages with detailed progress
 show_progress "6/7" "Installing dependencies..."
 cd $INSTALL_DIR
-npm install --no-audit --no-fund --loglevel=error
-npm run build
-
+echo "Installing npm packages..."
+npm install --no-audit --no-fund --loglevel=info | grep -E "added|removed|changed|finished"
+echo "Building application..."
+npm run build --loglevel=info | grep -E "webpack|asset|entrypoint|chunks|modules"
 # Set up systemd service
 show_progress "7/7" "Configuring service..."
 sudo tee /etc/systemd/system/gymnasticon.service > /dev/null <<EOL
