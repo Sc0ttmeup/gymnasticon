@@ -1,5 +1,8 @@
 # Gymnasticon
 
+The original timed out all the time with Keiser bikes - this version lengthenes the time the program listened without dropping. 
+
+
 <p align="center">
 <img src="docs/gymnasticon.jpg">
 </p>
