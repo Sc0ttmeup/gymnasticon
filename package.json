@@ -38,5 +38,3 @@
     "tape": "^5.0.0"
   }
 }
-
-sudo echo '{"type": "module"}' >> /opt/gymnasticon/package.json
