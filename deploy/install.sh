@@ -68,15 +68,17 @@ sudo apt-get install -y \
 show_progress "4/7" "Installing Node.js..."
 check_node_version
 
-# Repository setup
+# Create installation directory with proper permissions
 show_progress "5/7" "Setting up Gymnasticon..."
 sudo mkdir -p $INSTALL_DIR
 sudo chown $USER:$USER $INSTALL_DIR
-git clone --depth 1 --branch $BRANCH $REPO_URL $INSTALL_DIR
+cd $INSTALL_DIR || exit 1
+
+# Repository setup
+git clone --depth 1 --branch $BRANCH $REPO_URL .
 
 # Dependencies and build
 show_progress "6/7" "Installing dependencies..."
-cd $INSTALL_DIR
 npm install --no-audit --no-fund
 NODE_ENV=production npm run build
 
