@@ -6,14 +6,13 @@ REPO_URL="https://github.com/4o4R/gymnasticon.git"
 BRANCH="master"
 INSTALL_DIR="/opt/gymnasticon"
 LOG_FILE="/home/pi/install.log"
-# Node.js version pinning
 NODE_VERSION="14.x"
 NODE_SETUP_URL="https://deb.nodesource.com/setup_${NODE_VERSION}"
 
 # Start logging
 exec > >(tee -a $LOG_FILE) 2>&1
 
-# Progress and error handling functions
+# Helper functions
 show_progress() {
     echo "[$1] $2"
     sleep 1
@@ -33,6 +32,7 @@ check_node_version() {
         exit 1
     fi
 }
+
 validate_permissions() {
     if ! groups | grep -q bluetooth; then
         sudo usermod -a -G bluetooth $USER
@@ -43,7 +43,7 @@ trap 'handle_error $LINENO' ERR
 
 show_progress "1/7" "Starting installation of Gymnasticon..."
 
-# Remove previous installations
+# Clean removal of previous installation
 show_progress "2/7" "Removing previous installations..."
 sudo systemctl stop gymnasticon || true
 sudo systemctl disable gymnasticon || true
@@ -51,10 +51,9 @@ sudo rm -rf $INSTALL_DIR
 sudo rm -f /etc/systemd/system/gymnasticon.service
 sudo systemctl daemon-reload
 
-# Install system dependencies
+# System dependencies
 show_progress "3/7" "Installing system dependencies..."
 sudo apt-get update
-# Install system dependencies with version pins
 sudo apt-get install -y \
     git=1:2.20.1* \
     bluetooth=5.50* \
@@ -64,41 +63,31 @@ sudo apt-get install -y \
     libusb-1.0-0-dev=2:1.0.22* \
     build-essential=12.6* \
     curl=7.64.0*
-# Install Node.js
-show_progress "4/7" "Installing Node.js..."
 
+# Node.js setup
+show_progress "4/7" "Installing Node.js..."
 check_node_version
 
-# Install npm packages with detailed progress
+# Repository setup
+show_progress "5/7" "Setting up Gymnasticon..."
+sudo mkdir -p $INSTALL_DIR
+sudo chown $USER:$USER $INSTALL_DIR
+git clone --depth 1 --branch $BRANCH $REPO_URL $INSTALL_DIR
+
+# Dependencies and build
 show_progress "6/7" "Installing dependencies..."
 cd $INSTALL_DIR
-echo "Installing npm packages..."
-npm install --no-audit --no-fund --loglevel=info | grep -E "added|removed|changed|finished"
-echo "Building application..."
-npm run build --loglevel=info | grep -E "webpack|asset|entrypoint|chunks|modules"
-# Clone repository
-show_progress "5/7" "Setting up Gymnasticon..."
-if [ ! -d "$INSTALL_DIR" ]; then
-    sudo mkdir -p $INSTALL_DIR
-    sudo chown $USER:$USER $INSTALL_DIR
-    git clone --depth 1 --branch $BRANCH $REPO_URL $INSTALL_DIR
-else
-    cd $INSTALL_DIR
-    sudo git reset --hard
-    sudo git pull origin $BRANCH
-fi
+npm install --no-audit --no-fund
+NODE_ENV=production npm run build
 
-# Set permissions and validate
+# Verify build
+node -c lib/app/cli.js
+
+# Set permissions
 sudo chown -R $USER:$USER $INSTALL_DIR
 validate_permissions
-# Install npm packages with detailed progress
-show_progress "6/7" "Installing dependencies..."
-cd $INSTALL_DIR
-echo "Installing npm packages..."
-npm install --no-audit --no-fund --loglevel=info | grep -E "added|removed|changed|finished"
-echo "Building application..."
-npm run build --loglevel=info | grep -E "webpack|asset|entrypoint|chunks|modules"
-# Set up systemd service
+
+# Service setup
 show_progress "7/7" "Configuring service..."
 sudo tee /etc/systemd/system/gymnasticon.service > /dev/null <<EOL
 [Unit]
@@ -123,29 +112,15 @@ NoNewPrivileges=true
 WantedBy=multi-user.target
 EOL
 
-# Enable and verify service
+# Enable and start service
 sudo systemctl daemon-reload
 sudo systemctl enable gymnasticon
 sudo systemctl start gymnasticon
 
-# Verify service status
+# Verify service
 timeout 30 systemctl status gymnasticon || {
     echo "Service failed to start properly"
     exit 1
 }
 
 show_progress "Complete" "Gymnasticon is now running as a service!"
-
-check_os_version() {
-    if ! grep -q "buster" /etc/os-release; then
-        echo "This script requires Raspbian Buster Lite (2021)"
-        exit 1
-    }
-}
-
-check_architecture() {
-    if ! uname -m | grep -q "armv6l"; then
-        echo "This script requires ARMv6 architecture (Raspberry Pi Zero)"
-        exit 1
-    }
-}

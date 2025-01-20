@@ -38,3 +38,10 @@
     "tape": "^5.0.0"
   }
 }
+
+{
+  "type": "module",
+  "exports": {
+    ".": "./lib/app/cli.js"
+  }
+}
