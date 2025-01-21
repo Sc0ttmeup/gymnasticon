@@ -128,12 +128,17 @@ else
 
     # Install babel dependencies locally
     npm install --save-dev @babel/cli @babel/core @babel/preset-env
-
-    # Configure babel
-    echo '{
-      "presets": ["@babel/preset-env"]
-    }' > .babelrc
-
+        # Configure babel for CommonJS output
+        echo '{
+          "presets": [
+            ["@babel/preset-env", {
+              "targets": {
+                "node": "14"
+              },
+              "modules": "commonjs"
+            }]
+          ]
+        }' > .babelrc
     # Run babel build
     NODE_ENV=production npx babel src --out-dir lib --verbose
 fi

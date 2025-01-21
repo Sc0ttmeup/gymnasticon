@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 
 import yargs from 'yargs';
-import {App} from './app';
-import {options} from './cli-options';
+import {App} from './app';import {options} from './cli-options';
 import {version} from '../../package.json';
 
 const banner = String.raw`
