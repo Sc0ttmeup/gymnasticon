@@ -157,7 +157,17 @@ cd $INSTALL_DIR || exit 1
         # Run babel build
         NODE_ENV=production npx babel src --out-dir lib --verbose
     fi
-# Verify the output
+
+    # Verify the output
+    if [ -f "lib/app/cli.js" ]; then
+        echo "Build verification successful"
+        node -c lib/app/cli.js
+    else
+        echo "Build verification failed"
+        ls -la lib/app/
+        ls -la src/app/
+        exit 1
+    fi# Verify the output
 if [ -f "lib/app/cli.js" ]; then
     echo "Build verification successful"
     node -c lib/app/cli.js
@@ -167,11 +177,9 @@ else
     ls -la src/app/
     exit 1
 fi
-
 # Set permissions
 sudo chown -R $USER:$USER $INSTALL_DIR
-validate_permissions
-
+sudo chmod 755 $INSTALL_DIR
 # Service setup
 show_progress "7/7" "Configuring service..."
 sudo tee /etc/systemd/system/gymnasticon.service > /dev/null <<EOL
