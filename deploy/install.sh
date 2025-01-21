@@ -22,17 +22,6 @@ handle_error() {
     echo "Error occurred at line $1"
     exit 1
 }
-
-
-
-
-
-
-
-
-
-
-
     # Enhanced cleanup_locks function
     cleanup_locks() {
         show_progress "Cleanup" "Removing package manager locks..."
@@ -116,58 +105,40 @@ show_progress "5/7" "Setting up Gymnasticon..."
 sudo mkdir -p $INSTALL_DIR
 sudo chown $USER:$USER $INSTALL_DIR
 cd $INSTALL_DIR || exit 1
-    # Repository setup
-    git clone --depth 1 --branch $BRANCH $REPO_URL .
 
-    # Configure package.json for ES modules
-    jq '. + {"type":"module"}' package.json > package.json.tmp && mv package.json.tmp package.json
+# Repository setup
+git clone --depth 1 --branch $BRANCH $REPO_URL .
 
-    # Configure babel to handle ES modules correctly
+# Dependencies and build
+show_progress "6/7" "Checking existing installation..."
+
+# Check if lib/app/cli.js already exists and is valid
+if [ -f "lib/app/cli.js" ] && node -c lib/app/cli.js > /dev/null 2>&1; then
+    echo "Valid existing installation found, skipping build process"
+else
+    echo "Building from source..."
+    # Install global dependencies first
+    npm install -g @babel/cli @babel/core
+
+    # Install project dependencies
+    npm install --no-audit --no-fund
+
+    # Create necessary directories
+    mkdir -p lib/app
+
+    # Install babel dependencies locally
+    npm install --save-dev @babel/cli @babel/core @babel/preset-env
+
+    # Configure babel
     echo '{
-      "presets": [
-        ["@babel/preset-env", {
-          "targets": {
-            "node": "14"
-          },
-          "modules": false
-        }]
-      ]
+      "presets": ["@babel/preset-env"]
     }' > .babelrc
 
-    # Dependencies and build
-    show_progress "6/7" "Checking existing installation..."
+    # Run babel build
+    NODE_ENV=production npx babel src --out-dir lib --verbose
+fi
 
-    # Check if lib/app/cli.js already exists and is valid
-    if [ -f "lib/app/cli.js" ] && node -c lib/app/cli.js > /dev/null 2>&1; then
-        echo "Valid existing installation found, skipping build process"
-    else
-        echo "Building from source..."
-        # Install global dependencies first
-        npm install -g @babel/cli @babel/core
-
-        # Install project dependencies
-        npm install --no-audit --no-fund
-
-        # Create necessary directories
-        mkdir -p lib/app
-
-        # Install babel dependencies locally
-        npm install --save-dev @babel/cli @babel/core @babel/preset-env
-
-        # Run babel build
-        NODE_ENV=production npx babel src --out-dir lib --verbose
-    fi
-
-    # Verify the output
-    if [ -f "lib/app/cli.js" ]; then
-        echo "Build verification successful"
-        node -c lib/app/cli.js
-    else
-        echo "Build verification failed"
-        ls -la lib/app/
-        ls -la src/app/
-        exit 1
-    fi# Verify the output
+# Verify the output
 if [ -f "lib/app/cli.js" ]; then
     echo "Build verification successful"
     node -c lib/app/cli.js
@@ -177,10 +148,10 @@ else
     ls -la src/app/
     exit 1
 fi
+
 # Set permissions
 sudo chown -R $USER:$USER $INSTALL_DIR
-sudo chmod 755 $INSTALL_DIR
-# Service setup
+validate_permissions
 show_progress "7/7" "Configuring service..."
 sudo tee /etc/systemd/system/gymnasticon.service > /dev/null <<EOL
 [Unit]
