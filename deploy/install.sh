@@ -5,14 +5,14 @@ set -e
 REPO_URL="https://github.com/4o4R/gymnasticon.git"
 BRANCH="master"
 INSTALL_DIR="/opt/gymnasticon"
-LOG_FILE="/home/pi/install.log"
+LOG_FILE="/var/log/gymnasticon-install.log"
 NODE_VERSION="14.x"
 NODE_SETUP_URL="https://deb.nodesource.com/setup_${NODE_VERSION}"
 
-# Start logging
-exec > >(tee -a $LOG_FILE) 2>&1
+# Start logging with sudo to ensure write permissions
+exec > >(sudo tee -a $LOG_FILE) 2>&1
 
-# Helper functions
+# Enhanced helper functions
 show_progress() {
     echo "[$1] $2"
     sleep 1
@@ -21,6 +21,16 @@ show_progress() {
 handle_error() {
     echo "Error occurred at line $1"
     exit 1
+}
+
+# Add lock file cleanup
+cleanup_locks() {
+    show_progress "Cleanup" "Removing package manager locks..."
+    sudo killall apt apt-get || true
+    sudo rm -f /var/lib/apt/lists/lock
+    sudo rm -f /var/cache/apt/archives/lock
+    sudo rm -f /var/lib/dpkg/lock*
+    sudo dpkg --configure -a
 }
 
 check_node_version() {
@@ -41,30 +51,43 @@ validate_permissions() {
 
 trap 'handle_error $LINENO' ERR
 
-show_progress "1/7" "Starting installation of Gymnasticon..."
+# Ensure we're in home directory
+cd ~
+
+show_progress "1/8" "Starting installation of Gymnasticon..."
 
 # Clean removal of previous installation
-show_progress "2/7" "Removing previous installations..."
-sudo systemctl stop gymnasticon || true
-sudo systemctl disable gymnasticon || true
+show_progress "2/8" "Removing previous installations..."
+sudo systemctl stop gymnasticon 2>/dev/null || true
+sudo systemctl disable gymnasticon 2>/dev/null || true
 sudo rm -rf $INSTALL_DIR
 sudo rm -f /etc/systemd/system/gymnasticon.service
 sudo systemctl daemon-reload
 
-# System dependencies
-show_progress "3/7" "Installing system dependencies..."
-sudo apt-get update
-sudo apt-get install -y \
-    git=1:2.20.1* \
-    bluetooth=5.50* \
-    bluez=5.50* \
-    libbluetooth-dev=5.50* \
-    libudev-dev=241* \
-    libusb-1.0-0-dev=2:1.0.22* \
-    build-essential=12.6* \
-    curl=7.64.0* \
-    jq
+# Clean package manager locks
+show_progress "3/8" "Cleaning package manager state..."
+cleanup_locks
 
+# System dependencies
+show_progress "4/8" "Installing system dependencies..."
+for i in {1..3}; do
+    if sudo apt-get update && \
+       sudo apt-get install -y \
+        git \
+        bluetooth \
+        bluez \
+        libbluetooth-dev \
+        libudev-dev \
+        libusb-1.0-0-dev \
+        build-essential \
+        curl \
+        jq; then
+        break
+    fi
+    show_progress "Retry" "Package installation attempt $i failed, retrying..."
+    sleep 5
+    cleanup_locks
+done
 # Node.js setup
 show_progress "4/7" "Installing Node.js..."
 check_node_version
