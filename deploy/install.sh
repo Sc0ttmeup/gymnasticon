@@ -151,6 +151,43 @@ fi
 
 # Set permissions
 sudo chown -R $USER:$USER $INSTALL_DIR
+validate_permissions    echo "Valid existing installation found, skipping build process"
+else
+    echo "Building from source..."
+    # Install global dependencies first
+    npm install -g @babel/cli @babel/core
+
+    # Install project dependencies
+    npm install --no-audit --no-fund
+
+    # Create necessary directories
+    mkdir -p lib/app
+
+    # Install babel dependencies locally
+    npm install --save-dev @babel/cli @babel/core @babel/preset-env
+
+    # Configure babel
+    echo '{
+      "presets": ["@babel/preset-env"]
+    }' > .babelrc
+
+    # Run babel build
+    NODE_ENV=production npx babel src --out-dir lib --verbose
+fi
+
+# Verify the output
+if [ -f "lib/app/cli.js" ]; then
+    echo "Build verification successful"
+    node -c lib/app/cli.js
+else
+    echo "Build verification failed"
+    ls -la lib/app/
+    ls -la src/app/
+    exit 1
+fi
+
+# Set permissions
+sudo chown -R $USER:$USER $INSTALL_DIR
 validate_permissions
 show_progress "7/7" "Configuring service..."
 sudo tee /etc/systemd/system/gymnasticon.service > /dev/null <<EOL
