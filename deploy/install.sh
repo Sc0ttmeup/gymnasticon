@@ -111,6 +111,11 @@ git clone --depth 1 --branch $BRANCH $REPO_URL .
 
 # Dependencies and build
 show_progress "6/7" "Checking existing installation..."
+show_progress "Setup" "Configuring build environment..."
+export npm_config_build_from_source=true
+export CFLAGS="-O1"
+export CXXFLAGS="-O1"
+export npm_config_jobs=1
 
 # Check if lib/app/cli.js already exists and is valid
 if [ -f "lib/app/cli.js" ] && node -c lib/app/cli.js > /dev/null 2>&1; then
@@ -121,7 +126,7 @@ else
     npm install -g @babel/cli @babel/core
 
     # Install project dependencies
-    npm install --no-audit --no-fund
+    npm install --no-audit --no-fund --unsafe-perm --build-from-source --jobs=1
 
     # Create necessary directories
     mkdir -p lib/app
