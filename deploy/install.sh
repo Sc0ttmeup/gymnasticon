@@ -23,16 +23,35 @@ handle_error() {
     exit 1
 }
 
-# Add lock file cleanup
-cleanup_locks() {
-    show_progress "Cleanup" "Removing package manager locks..."
-    sudo killall apt apt-get || true
-    sudo rm -f /var/lib/apt/lists/lock
-    sudo rm -f /var/cache/apt/archives/lock
-    sudo rm -f /var/lib/dpkg/lock*
-    sudo dpkg --configure -a
-}
 
+
+
+
+
+
+
+
+
+
+    # Enhanced cleanup_locks function
+    cleanup_locks() {
+        show_progress "Cleanup" "Removing package manager locks..."
+        # Wait for any unattended-upgrades to finish
+        while sudo lsof /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+            show_progress "Waiting" "Package manager is busy, waiting 30 seconds..."
+            sleep 30
+        done
+    
+        sudo killall apt apt-get >/dev/null 2>&1 || true
+        sudo rm -f /var/lib/apt/lists/lock
+        sudo rm -f /var/cache/apt/archives/lock
+        sudo rm -f /var/lib/dpkg/lock*
+        sudo rm -f /var/lib/dpkg/lock-frontend
+        sudo dpkg --configure -a
+    
+        # Additional wait to ensure locks are released
+        sleep 5
+    }
 check_node_version() {
     if command -v node >/dev/null; then
         echo "Using pre-installed Node.js $(node -v)"
@@ -97,39 +116,47 @@ show_progress "5/7" "Setting up Gymnasticon..."
 sudo mkdir -p $INSTALL_DIR
 sudo chown $USER:$USER $INSTALL_DIR
 cd $INSTALL_DIR || exit 1
+    # Repository setup
+    git clone --depth 1 --branch $BRANCH $REPO_URL .
 
-# Repository setup
-git clone --depth 1 --branch $BRANCH $REPO_URL .
+    # Configure package.json for ES modules
+    jq '. + {"type":"module"}' package.json > package.json.tmp && mv package.json.tmp package.json
 
-# Dependencies and build
-show_progress "6/7" "Checking existing installation..."
-
-# Check if lib/app/cli.js already exists and is valid
-if [ -f "lib/app/cli.js" ] && node -c lib/app/cli.js > /dev/null 2>&1; then
-    echo "Valid existing installation found, skipping build process"
-else
-    echo "Building from source..."
-    # Install global dependencies first
-    npm install -g @babel/cli @babel/core
-
-    # Install project dependencies
-    npm install --no-audit --no-fund
-
-    # Create necessary directories
-    mkdir -p lib/app
-
-    # Install babel dependencies locally
-    npm install --save-dev @babel/cli @babel/core @babel/preset-env
-
-    # Configure babel
+    # Configure babel to handle ES modules correctly
     echo '{
-      "presets": ["@babel/preset-env"]
+      "presets": [
+        ["@babel/preset-env", {
+          "targets": {
+            "node": "14"
+          },
+          "modules": false
+        }]
+      ]
     }' > .babelrc
 
-    # Run babel build
-    NODE_ENV=production npx babel src --out-dir lib --verbose
-fi
+    # Dependencies and build
+    show_progress "6/7" "Checking existing installation..."
 
+    # Check if lib/app/cli.js already exists and is valid
+    if [ -f "lib/app/cli.js" ] && node -c lib/app/cli.js > /dev/null 2>&1; then
+        echo "Valid existing installation found, skipping build process"
+    else
+        echo "Building from source..."
+        # Install global dependencies first
+        npm install -g @babel/cli @babel/core
+
+        # Install project dependencies
+        npm install --no-audit --no-fund
+
+        # Create necessary directories
+        mkdir -p lib/app
+
+        # Install babel dependencies locally
+        npm install --save-dev @babel/cli @babel/core @babel/preset-env
+
+        # Run babel build
+        NODE_ENV=production npx babel src --out-dir lib --verbose
+    fi
 # Verify the output
 if [ -f "lib/app/cli.js" ]; then
     echo "Build verification successful"
