@@ -1,3 +1,5 @@
+# /deploy/install.sh
+
 #!/bin/bash
 set -e
 
@@ -113,8 +115,8 @@ for i in {1..3}; do
     cleanup_locks
 done
 
-# Node.js setup
-show_progress "4/7" "Installing Node.js..."
+# Node.js check (assumes Node 14 is already installed on older OS image)
+show_progress "4/7" "Checking Node.js environment..."
 check_node_version
 
 # Create installation directory with proper permissions
@@ -142,12 +144,14 @@ npm config set legacy-peer-deps true
 # Setup swap
 setup_swap
 
-# Install babel and its plugins
-npm install -g @babel/cli @babel/core @babel/plugin-transform-modules-commonjs --no-audit --no-fund --unsafe-perm --legacy-peer-deps
-
-# Install project dependencies
+# 1) Install runtime (production) dependencies
 npm install --no-audit --no-fund --production --unsafe-perm --build-from-source --jobs=1 --legacy-peer-deps
+
+# 2) Install dev dependencies (includes Babel, but not the 'transform-modules-commonjs' plugin)
 npm install --no-audit --no-fund --only=dev --unsafe-perm --build-from-source --jobs=1 --legacy-peer-deps
+
+# 3) Install @babel/plugin-transform-modules-commonjs locally (without editing package.json)
+npm install @babel/plugin-transform-modules-commonjs --no-save --no-audit --no-fund --unsafe-perm --build-from-source --jobs=1 --legacy-peer-deps
 
 # Clean npm cache
 npm cache clean --force
@@ -155,7 +159,7 @@ npm cache clean --force
 # Create necessary directories
 mkdir -p lib/app
 
-# Configure babel with proper module transformation
+# Configure Babel with proper module transformation
 echo '{
   "presets": [
     ["@babel/preset-env", {
@@ -170,10 +174,11 @@ echo '{
   ]
 }' > .babelrc
 
-# Set package type to commonjs
+# Optionally override "type": "module" with "commonjs" if needed for Node 14
+# (You can remove this if you'd prefer to keep the 'type' as-is)
 jq '. + {"type": "commonjs"}' package.json > package.json.tmp && mv package.json.tmp package.json
 
-# Run babel build
+# Run Babel build
 NODE_ENV=production npx babel src --out-dir lib --verbose
 
 # Cleanup swap
