@@ -22,25 +22,26 @@ handle_error() {
     echo "Error occurred at line $1"
     exit 1
 }
-    # Enhanced cleanup_locks function
-    cleanup_locks() {
-        show_progress "Cleanup" "Removing package manager locks..."
-        # Wait for any unattended-upgrades to finish
-        while sudo lsof /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
-            show_progress "Waiting" "Package manager is busy, waiting 30 seconds..."
-            sleep 30
-        done
-    
-        sudo killall apt apt-get >/dev/null 2>&1 || true
-        sudo rm -f /var/lib/apt/lists/lock
-        sudo rm -f /var/cache/apt/archives/lock
-        sudo rm -f /var/lib/dpkg/lock*
-        sudo rm -f /var/lib/dpkg/lock-frontend
-        sudo dpkg --configure -a
-    
-        # Additional wait to ensure locks are released
-        sleep 5
-    }
+
+cleanup_locks() {
+    show_progress "Cleanup" "Removing package manager locks..."
+    # Wait for any unattended-upgrades to finish
+    while sudo lsof /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+        show_progress "Waiting" "Package manager is busy, waiting 30 seconds..."
+        sleep 30
+    done
+
+    sudo killall apt apt-get >/dev/null 2>&1 || true
+    sudo rm -f /var/lib/apt/lists/lock
+    sudo rm -f /var/cache/apt/archives/lock
+    sudo rm -f /var/lib/dpkg/lock*
+    sudo rm -f /var/lib/dpkg/lock-frontend
+    sudo dpkg --configure -a
+
+    # Additional wait to ensure locks are released
+    sleep 5
+}
+
 check_node_version() {
     if command -v node >/dev/null; then
         echo "Using pre-installed Node.js $(node -v)"
@@ -96,6 +97,7 @@ for i in {1..3}; do
     sleep 5
     cleanup_locks
 done
+
 # Node.js setup
 show_progress "4/7" "Installing Node.js..."
 check_node_version
@@ -133,52 +135,17 @@ else
 
     # Install babel dependencies locally
     npm install --save-dev @babel/cli @babel/core @babel/preset-env
-        # Configure babel for CommonJS output
-        echo '{
-          "presets": [
-            ["@babel/preset-env", {
-              "targets": {
-                "node": "14"
-              },
-              "modules": "commonjs"
-            }]
-          ]
-        }' > .babelrc
-    # Run babel build
-    NODE_ENV=production npx babel src --out-dir lib --verbose
-fi
 
-# Verify the output
-if [ -f "lib/app/cli.js" ]; then
-    echo "Build verification successful"
-    node -c lib/app/cli.js
-else
-    echo "Build verification failed"
-    ls -la lib/app/
-    ls -la src/app/
-    exit 1
-fi
-
-# Set permissions
-sudo chown -R $USER:$USER $INSTALL_DIR
-validate_permissions    echo "Valid existing installation found, skipping build process"
-else
-    echo "Building from source..."
-    # Install global dependencies first
-    npm install -g @babel/cli @babel/core
-
-    # Install project dependencies
-    npm install --no-audit --no-fund
-
-    # Create necessary directories
-    mkdir -p lib/app
-
-    # Install babel dependencies locally
-    npm install --save-dev @babel/cli @babel/core @babel/preset-env
-
-    # Configure babel
+    # Configure babel for CommonJS output
     echo '{
-      "presets": ["@babel/preset-env"]
+      "presets": [
+        ["@babel/preset-env", {
+          "targets": {
+            "node": "14"
+          },
+          "modules": "commonjs"
+        }]
+      ]
     }' > .babelrc
 
     # Run babel build
@@ -199,6 +166,7 @@ fi
 # Set permissions
 sudo chown -R $USER:$USER $INSTALL_DIR
 validate_permissions
+
 show_progress "7/7" "Configuring service..."
 sudo tee /etc/systemd/system/gymnasticon.service > /dev/null <<EOL
 [Unit]
@@ -211,8 +179,8 @@ StartLimitIntervalSec=0
 Type=simple
 Environment=PATH=/usr/local/bin:/opt/gymnasticon/node_modules/.bin
 WorkingDirectory=$INSTALL_DIR
-User=pi
-Group=pi
+User=$USER
+Group=$USER
 ExecStart=/usr/local/bin/node $INSTALL_DIR/lib/app/cli.js
 RestartSec=1
 Restart=always
