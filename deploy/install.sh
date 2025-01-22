@@ -142,8 +142,8 @@ npm config set legacy-peer-deps true
 # Setup swap
 setup_swap
 
-# Install global dependencies
-npm install -g @babel/cli @babel/core --no-audit --no-fund --unsafe-perm --legacy-peer-deps
+# Install babel and its plugins
+npm install -g @babel/cli @babel/core @babel/plugin-transform-modules-commonjs --no-audit --no-fund --unsafe-perm --legacy-peer-deps
 
 # Install project dependencies
 npm install --no-audit --no-fund --production --unsafe-perm --build-from-source --jobs=1 --legacy-peer-deps
@@ -155,7 +155,7 @@ npm cache clean --force
 # Create necessary directories
 mkdir -p lib/app
 
-# Configure babel
+# Configure babel with proper module transformation
 echo '{
   "presets": [
     ["@babel/preset-env", {
@@ -164,8 +164,14 @@ echo '{
       },
       "modules": "commonjs"
     }]
+  ],
+  "plugins": [
+    "@babel/plugin-transform-modules-commonjs"
   ]
 }' > .babelrc
+
+# Set package type to commonjs
+jq '. + {"type": "commonjs"}' package.json > package.json.tmp && mv package.json.tmp package.json
 
 # Run babel build
 NODE_ENV=production npx babel src --out-dir lib --verbose
