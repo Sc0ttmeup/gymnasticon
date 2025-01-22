@@ -8,6 +8,7 @@ INSTALL_DIR="/opt/gymnasticon"
 LOG_FILE="/var/log/gymnasticon-install.log"
 NODE_VERSION="14.x"
 NODE_SETUP_URL="https://deb.nodesource.com/setup_${NODE_VERSION}"
+SWAP_SIZE=1024
 
 # Start logging with sudo to ensure write permissions
 exec > >(sudo tee -a $LOG_FILE) 2>&1
@@ -20,12 +21,28 @@ show_progress() {
 
 handle_error() {
     echo "Error occurred at line $1"
+    cleanup_swap
     exit 1
+}
+
+setup_swap() {
+    show_progress "Setup" "Creating temporary swap file..."
+    sudo fallocate -l ${SWAP_SIZE}M /swapfile
+    sudo chmod 600 /swapfile
+    sudo mkswap /swapfile
+    sudo swapon /swapfile
+}
+
+cleanup_swap() {
+    if [ -f /swapfile ]; then
+        show_progress "Cleanup" "Removing temporary swap file..."
+        sudo swapoff /swapfile
+        sudo rm -f /swapfile
+    fi
 }
 
 cleanup_locks() {
     show_progress "Cleanup" "Removing package manager locks..."
-    # Wait for any unattended-upgrades to finish
     while sudo lsof /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
         show_progress "Waiting" "Package manager is busy, waiting 30 seconds..."
         sleep 30
@@ -37,8 +54,6 @@ cleanup_locks() {
     sudo rm -f /var/lib/dpkg/lock*
     sudo rm -f /var/lib/dpkg/lock-frontend
     sudo dpkg --configure -a
-
-    # Additional wait to ensure locks are released
     sleep 5
 }
 
@@ -112,45 +127,51 @@ cd $INSTALL_DIR || exit 1
 git clone --depth 1 --branch $BRANCH $REPO_URL .
 
 # Dependencies and build
-show_progress "6/7" "Checking existing installation..."
-show_progress "Setup" "Configuring build environment..."
+show_progress "6/7" "Setting up build environment..."
 export npm_config_build_from_source=true
 export CFLAGS="-O1"
 export CXXFLAGS="-O1"
 export npm_config_jobs=1
+export NODE_OPTIONS="--max-old-space-size=256"
 
-# Check if lib/app/cli.js already exists and is valid
-if [ -f "lib/app/cli.js" ] && node -c lib/app/cli.js > /dev/null 2>&1; then
-    echo "Valid existing installation found, skipping build process"
-else
-    echo "Building from source..."
-    # Install global dependencies first
-    npm install -g @babel/cli @babel/core
+# Configure npm
+npm config set registry https://registry.npmjs.org/
+npm config set unsafe-perm true
+npm config set legacy-peer-deps true
 
-    # Install project dependencies
-    npm install --no-audit --no-fund --unsafe-perm --build-from-source --jobs=1
+# Setup swap
+setup_swap
 
-    # Create necessary directories
-    mkdir -p lib/app
+# Install global dependencies
+npm install -g @babel/cli @babel/core --no-audit --no-fund --unsafe-perm --legacy-peer-deps
 
-    # Install babel dependencies locally
-    npm install --save-dev @babel/cli @babel/core @babel/preset-env
+# Install project dependencies
+npm install --no-audit --no-fund --production --unsafe-perm --build-from-source --jobs=1 --legacy-peer-deps
+npm install --no-audit --no-fund --only=dev --unsafe-perm --build-from-source --jobs=1 --legacy-peer-deps
 
-    # Configure babel for CommonJS output
-    echo '{
-      "presets": [
-        ["@babel/preset-env", {
-          "targets": {
-            "node": "14"
-          },
-          "modules": "commonjs"
-        }]
-      ]
-    }' > .babelrc
+# Clean npm cache
+npm cache clean --force
 
-    # Run babel build
-    NODE_ENV=production npx babel src --out-dir lib --verbose
-fi
+# Create necessary directories
+mkdir -p lib/app
+
+# Configure babel
+echo '{
+  "presets": [
+    ["@babel/preset-env", {
+      "targets": {
+        "node": "14"
+      },
+      "modules": "commonjs"
+    }]
+  ]
+}' > .babelrc
+
+# Run babel build
+NODE_ENV=production npx babel src --out-dir lib --verbose
+
+# Cleanup swap
+cleanup_swap
 
 # Verify the output
 if [ -f "lib/app/cli.js" ]; then
