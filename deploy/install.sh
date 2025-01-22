@@ -116,11 +116,11 @@ for i in {1..3}; do
 done
 
 # Node.js check (assumes Node 14 is already installed on older OS image)
-show_progress "4/7" "Checking Node.js environment..."
+show_progress "5/78" "Checking Node.js environment..."
 check_node_version
 
 # Create installation directory with proper permissions
-show_progress "5/7" "Setting up Gymnasticon..."
+show_progress "6/8" "Setting up Gymnasticon..."
 sudo mkdir -p $INSTALL_DIR
 sudo chown $USER:$USER $INSTALL_DIR
 cd $INSTALL_DIR || exit 1
@@ -129,7 +129,7 @@ cd $INSTALL_DIR || exit 1
 git clone --depth 1 --branch $BRANCH $REPO_URL .
 
 # Dependencies and build
-show_progress "6/7" "Setting up build environment..."
+show_progress "7/8" "Setting up build environment..."
 export npm_config_build_from_source=true
 export CFLAGS="-O1"
 export CXXFLAGS="-O1"
@@ -199,7 +199,7 @@ fi
 sudo chown -R $USER:$USER $INSTALL_DIR
 validate_permissions
 
-show_progress "7/7" "Configuring service..."
+show_progress "8/8" "Configuring service..."
 sudo tee /etc/systemd/system/gymnasticon.service > /dev/null <<EOL
 [Unit]
 Description=Gymnasticon
