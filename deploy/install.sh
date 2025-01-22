@@ -116,11 +116,11 @@ for i in {1..3}; do
 done
 
 # Node.js check (assumes Node 14 is already installed on older OS image)
-show_progress "5/78" "Checking Node.js environment..."
+show_progress "4/7" "Checking Node.js environment..."
 check_node_version
 
 # Create installation directory with proper permissions
-show_progress "6/8" "Setting up Gymnasticon..."
+show_progress "5/7" "Setting up Gymnasticon..."
 sudo mkdir -p $INSTALL_DIR
 sudo chown $USER:$USER $INSTALL_DIR
 cd $INSTALL_DIR || exit 1
@@ -129,7 +129,7 @@ cd $INSTALL_DIR || exit 1
 git clone --depth 1 --branch $BRANCH $REPO_URL .
 
 # Dependencies and build
-show_progress "7/8" "Setting up build environment..."
+show_progress "6/7" "Setting up build environment..."
 export npm_config_build_from_source=true
 export CFLAGS="-O1"
 export CXXFLAGS="-O1"
@@ -144,14 +144,24 @@ npm config set legacy-peer-deps true
 # Setup swap
 setup_swap
 
-# 1) Install runtime (production) dependencies
+# 1) Install *production* dependencies only (avoiding dev stuff like eslint, tape, etc.)
 npm install --no-audit --no-fund --production --unsafe-perm --build-from-source --jobs=1 --legacy-peer-deps
 
-# 2) Install dev dependencies (includes Babel, but not the 'transform-modules-commonjs' plugin)
-npm install --no-audit --no-fund --only=dev --unsafe-perm --build-from-source --jobs=1 --legacy-peer-deps
-
-# 3) Install @babel/plugin-transform-modules-commonjs locally (without editing package.json)
-npm install @babel/plugin-transform-modules-commonjs --no-save --no-audit --no-fund --unsafe-perm --build-from-source --jobs=1 --legacy-peer-deps
+# 2) Install minimal Babel packages *locally* (without altering package.json)
+# Feel free to remove plugin-transform-parameters if you don't need it.
+npm install \
+    @babel/cli \
+    @babel/core \
+    @babel/preset-env \
+    @babel/plugin-transform-modules-commonjs \
+    @babel/plugin-transform-parameters \
+    --no-save \
+    --no-audit \
+    --no-fund \
+    --unsafe-perm \
+    --build-from-source \
+    --jobs=1 \
+    --legacy-peer-deps
 
 # Clean npm cache
 npm cache clean --force
@@ -170,12 +180,13 @@ echo '{
     }]
   ],
   "plugins": [
-    "@babel/plugin-transform-modules-commonjs"
+    "@babel/plugin-transform-modules-commonjs",
+    "@babel/plugin-transform-parameters"
   ]
 }' > .babelrc
 
-# Optionally override "type": "module" with "commonjs" if needed for Node 14
-# (You can remove this if you'd prefer to keep the 'type' as-is)
+# Optional: override "type": "module" with "commonjs" for Node 14 at runtime
+# (Remove if you truly don't want to modify package.json)
 jq '. + {"type": "commonjs"}' package.json > package.json.tmp && mv package.json.tmp package.json
 
 # Run Babel build
@@ -199,7 +210,7 @@ fi
 sudo chown -R $USER:$USER $INSTALL_DIR
 validate_permissions
 
-show_progress "8/8" "Configuring service..."
+show_progress "7/7" "Configuring service..."
 sudo tee /etc/systemd/system/gymnasticon.service > /dev/null <<EOL
 [Unit]
 Description=Gymnasticon
