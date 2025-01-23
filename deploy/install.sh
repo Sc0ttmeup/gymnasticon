@@ -13,6 +13,7 @@ SECONDS=0
 TOTAL_STEPS=8
 
 # Start logging with sudo to ensure write permissions
+sudo apt-get install -y bc
 exec > >(sudo tee -a $LOG_FILE) 2>&1
 
 # Enhanced helper functions with time estimation
@@ -20,10 +21,19 @@ show_progress() {
     local step=$1
     local message=$2
     local elapsed=$SECONDS
-    local progress=$(echo "scale=2; $step/$TOTAL_STEPS * 100" | bc)
-    local remaining_time=$(( (elapsed * (TOTAL_STEPS - ${step%.*})) / ${step%.*} ))
     
-    echo "[$progress% - Step $step/$TOTAL_STEPS - Est. ${remaining_time}s remaining] $message"
+    # Convert step to numeric value for calculations
+    local step_num=$(echo $step | sed 's/\..*//g')
+    
+    # Avoid division by zero
+    if [ "$step_num" -gt 0 ]; then
+        local progress=$(echo "scale=2; $step_num/$TOTAL_STEPS * 100" | bc)
+        local remaining_time=$(echo "scale=0; ($elapsed * ($TOTAL_STEPS - $step_num)) / $step_num" | bc)
+        echo "[${progress}% - Step $step/$TOTAL_STEPS - Est. ${remaining_time}s remaining] $message"
+    else
+        echo "[0% - Step $step/$TOTAL_STEPS - Calculating...] $message"
+    fi
+    
     echo "Current runtime: ${elapsed}s"
     sleep 1
 }
