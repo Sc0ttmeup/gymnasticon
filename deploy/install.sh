@@ -1,5 +1,3 @@
-# /deploy/install.sh
-
 #!/bin/bash
 set -e
 
@@ -11,14 +9,36 @@ LOG_FILE="/var/log/gymnasticon-install.log"
 NODE_VERSION="14.x"
 NODE_SETUP_URL="https://deb.nodesource.com/setup_${NODE_VERSION}"
 SWAP_SIZE=1024
+SECONDS=0
+TOTAL_STEPS=8
 
 # Start logging with sudo to ensure write permissions
 exec > >(sudo tee -a $LOG_FILE) 2>&1
 
-# Enhanced helper functions
+# Enhanced helper functions with time estimation
 show_progress() {
-    echo "[$1] $2"
+    local step=$1
+    local message=$2
+    local elapsed=$SECONDS
+    local progress=$(echo "scale=2; $step/$TOTAL_STEPS * 100" | bc)
+    local remaining_time=$(( (elapsed * (TOTAL_STEPS - ${step%.*})) / ${step%.*} ))
+    
+    echo "[$progress% - Step $step/$TOTAL_STEPS - Est. ${remaining_time}s remaining] $message"
+    echo "Current runtime: ${elapsed}s"
     sleep 1
+}
+
+show_build_progress() {
+    local pid=$1
+    local step=$2
+    local count=0
+    while kill -0 $pid 2>/dev/null; do
+        printf "\r[Step $step - Running for ${count}s] "
+        for ((i=0; i<count%4; i++)); do printf "."; done
+        sleep 1
+        ((count++))
+    done
+    echo
 }
 
 handle_error() {
@@ -73,6 +93,10 @@ validate_permissions() {
     if ! groups | grep -q bluetooth; then
         sudo usermod -a -G bluetooth $USER
     fi
+    # Add user to dialout group for ANT+ stick access
+    if ! groups | grep -q dialout; then
+        sudo usermod -a -G dialout $USER
+    fi
 }
 
 trap 'handle_error $LINENO' ERR
@@ -95,10 +119,12 @@ show_progress "3/8" "Cleaning package manager state..."
 cleanup_locks
 
 # System dependencies
-show_progress "4/8" "Installing system dependencies..."
+show_progress "4.1/8" "Updating package lists..."
+sudo apt-get update
+
+show_progress "4.2/8" "Installing system packages..."
 for i in {1..3}; do
-    if sudo apt-get update && \
-       sudo apt-get install -y \
+    if sudo apt-get install -y \
         git \
         bluetooth \
         bluez \
@@ -115,12 +141,23 @@ for i in {1..3}; do
     cleanup_locks
 done
 
-# Node.js check (assumes Node 14 is already installed on older OS image)
-show_progress "4/7" "Checking Node.js environment..."
+# Configure ANT+ USB rules
+show_progress "4.3/8" "Configuring ANT+ USB rules..."
+sudo tee /etc/udev/rules.d/51-garmin-usb.rules > /dev/null <<EOL
+SUBSYSTEM=="usb", ATTRS{idVendor}=="0fcf", ATTRS{idProduct}=="1008", MODE="0666"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="0fcf", ATTRS{idProduct}=="1009", MODE="0666"
+EOL
+
+# Reload udev rules
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+
+# Node.js setup
+show_progress "5/8" "Setting up Node.js environment..."
 check_node_version
 
 # Create installation directory with proper permissions
-show_progress "5/7" "Setting up Gymnasticon..."
+show_progress "6.1/8" "Setting up Gymnasticon..."
 sudo mkdir -p $INSTALL_DIR
 sudo chown $USER:$USER $INSTALL_DIR
 cd $INSTALL_DIR || exit 1
@@ -129,7 +166,7 @@ cd $INSTALL_DIR || exit 1
 git clone --depth 1 --branch $BRANCH $REPO_URL .
 
 # Dependencies and build
-show_progress "6/7" "Setting up build environment..."
+show_progress "6.2/8" "Configuring build environment..."
 export npm_config_build_from_source=true
 export CFLAGS="-O1"
 export CXXFLAGS="-O1"
@@ -144,24 +181,21 @@ npm config set legacy-peer-deps true
 # Setup swap
 setup_swap
 
-# 1) Install *production* dependencies only (avoiding dev stuff like eslint, tape, etc.)
-npm install --no-audit --no-fund --production --unsafe-perm --build-from-source --jobs=1 --legacy-peer-deps
+show_progress "6.3/8" "Installing Babel tools..."
+# Install babel and its plugins
+npm install -g @babel/cli @babel/core @babel/plugin-transform-modules-commonjs --no-audit --no-fund --unsafe-perm --legacy-peer-deps &
+BABEL_PID=$!
+show_build_progress $BABEL_PID "6.3/8"
 
-# 2) Install minimal Babel packages *locally* (without altering package.json)
-# Feel free to remove plugin-transform-parameters if you don't need it.
-npm install \
-    @babel/cli \
-    @babel/core \
-    @babel/preset-env \
-    @babel/plugin-transform-modules-commonjs \
-    @babel/plugin-transform-parameters \
-    --no-save \
-    --no-audit \
-    --no-fund \
-    --unsafe-perm \
-    --build-from-source \
-    --jobs=1 \
-    --legacy-peer-deps
+show_progress "6.4/8" "Installing project dependencies..."
+# Install project dependencies
+npm install --no-audit --no-fund --production --unsafe-perm --build-from-source --jobs=1 --legacy-peer-deps &
+NPM_PID=$!
+show_build_progress $NPM_PID "6.4/8"
+
+npm install --no-audit --no-fund --only=dev --unsafe-perm --build-from-source --jobs=1 --legacy-peer-deps &
+NPM_DEV_PID=$!
+show_build_progress $NPM_DEV_PID "6.4/8"
 
 # Clean npm cache
 npm cache clean --force
@@ -169,7 +203,8 @@ npm cache clean --force
 # Create necessary directories
 mkdir -p lib/app
 
-# Configure Babel with proper module transformation
+show_progress "6.5/8" "Configuring Babel..."
+# Configure babel with proper module transformation
 echo '{
   "presets": [
     ["@babel/preset-env", {
@@ -180,27 +215,28 @@ echo '{
     }]
   ],
   "plugins": [
-    "@babel/plugin-transform-modules-commonjs",
-    "@babel/plugin-transform-parameters"
+    "@babel/plugin-transform-modules-commonjs"
   ]
 }' > .babelrc
 
-# Optional: override "type": "module" with "commonjs" for Node 14 at runtime
-# (Remove if you truly don't want to modify package.json)
+# Set package type to commonjs
 jq '. + {"type": "commonjs"}' package.json > package.json.tmp && mv package.json.tmp package.json
 
-# Run Babel build
-NODE_ENV=production npx babel src --out-dir lib --verbose
+show_progress "6.6/8" "Building project..."
+# Run babel build
+NODE_ENV=production npx babel src --out-dir lib --verbose &
+BABEL_BUILD_PID=$!
+show_build_progress $BABEL_BUILD_PID "6.6/8"
 
 # Cleanup swap
 cleanup_swap
 
 # Verify the output
 if [ -f "lib/app/cli.js" ]; then
-    echo "Build verification successful"
+    show_progress "7.1/8" "Build verification successful"
     node -c lib/app/cli.js
 else
-    echo "Build verification failed"
+    show_progress "7.1/8" "Build verification failed"
     ls -la lib/app/
     ls -la src/app/
     exit 1
@@ -210,7 +246,7 @@ fi
 sudo chown -R $USER:$USER $INSTALL_DIR
 validate_permissions
 
-show_progress "7/7" "Configuring service..."
+show_progress "7.2/8" "Configuring service..."
 sudo tee /etc/systemd/system/gymnasticon.service > /dev/null <<EOL
 [Unit]
 Description=Gymnasticon
@@ -234,6 +270,7 @@ NoNewPrivileges=true
 WantedBy=multi-user.target
 EOL
 
+show_progress "8/8" "Starting service..."
 # Enable and start service
 sudo systemctl daemon-reload
 sudo systemctl enable gymnasticon
@@ -246,4 +283,4 @@ timeout 30 systemctl status gymnasticon || {
     exit 1
 }
 
-show_progress "Complete" "Gymnasticon is now running as a service!"
+show_progress "Complete" "Gymnasticon installation finished in ${SECONDS}s!"
