@@ -124,59 +124,36 @@ This creates a well-structured markdown file in the deploy directory with:
 The file will be ready to commit to the repository and serve as a reference for future builds.
 
 Copy and Paste block into WSL Terminal:
-# Single command block for Gymnasticon build
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash && \
-source ~/.bashrc && \
-nvm install 14 && \
-nvm use 14 && \
-git clone https://github.com/4o4R/gymnasticon.git && \
-cd gymnasticon && \
-export npm_config_build_from_source=true && \
-export CFLAGS="-O1" && \
-export CXXFLAGS="-O1" && \
-export npm_config_jobs=1 && \
-export NODE_OPTIONS="--max-old-space-size=256" && \
-npm config set unsafe-perm true && \
-npm config set legacy-peer-deps true && \
-npm install @babel/cli @babel/core @babel/plugin-transform-modules-commonjs @babel/preset-env --no-save --build-from-source --unsafe-perm && \
-npm install --production --unsafe-perm --build-from-source && \
-echo '{"presets":[["@babel/preset-env",{"targets":{"node":"14"},"modules":"commonjs"}]],"plugins":["@babel/plugin-transform-modules-commonjs"]}' > .babelrc && \
-jq '. + {"type":"commonjs"}' package.json > package.json.tmp && mv package.json.tmp package.json && \
-npx babel src --out-dir lib && \
-sudo apt-get update && \
-sudo apt-get install -y kpartx && \
-wget https://downloads.raspberrypi.org/raspios_lite_armhf/images/raspios_lite_armhf-2023-05-03/2023-05-03-raspios-bullseye-armhf-lite.img.xz && \
-xz -d 2023-05-03-raspios-bullseye-armhf-lite.img.xz && \
-sudo mkdir -p /mnt/pi && \
-sudo kpartx -av 2023-05-03-raspios-bullseye-armhf-lite.img && \
-sudo mount /dev/mapper/loop1p2 /mnt/pi && \
-sudo mkdir -p /mnt/pi/opt/gymnasticon && \
-sudo cp -r lib package.json node_modules /mnt/pi/opt/gymnasticon/ && \
-sudo tee /mnt/pi/etc/systemd/system/gymnasticon.service <<EOF
-[Unit]
-Description=Gymnasticon
-After=bluetooth.target
-Requires=bluetooth.target
+# First create and move to a clean working directory
+cd ~
+mkdir -p gymnasticon-build
+cd gymnasticon-build
 
-[Service]
-Type=simple
-Environment=PATH=/usr/local/bin:/opt/gymnasticon/node_modules/.bin
-WorkingDirectory=/opt/gymnasticon
-User=pi
-Group=pi
-ExecStart=/usr/local/bin/node /opt/gymnasticon/lib/app/cli.js
-Restart=always
-RestartSec=1
-AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
-NoNewPrivileges=true
+# Now proceed with node-gyp setup
+npm uninstall -g node-gyp
+npm install -g node-gyp@8.4.1
+npm config set node_gyp $(npm prefix -g)/lib/node_modules/node-gyp/bin/node-gyp.js
 
-[Install]
-WantedBy=multi-user.target
-EOF
+# Set Python 3 explicitly
+export PYTHON=/usr/bin/python3
+npm config set python /usr/bin/python3
 
-sudo umount /mnt/pi && \
-sudo kpartx -d 2023-05-03-raspios-bullseye-armhf-lite.img && \
-ls -la lib/app/cli.js
+# Clean npm cache and remove previous build artifacts
+npm cache clean --force
+rm -rf ~/.node-gyp
+
+# Clone and build with updated configuration
+git clone https://github.com/4o4R/gymnasticon.git
+cd gymnasticon
+export npm_config_build_from_source=true
+export CFLAGS="-O1"
+export CXXFLAGS="-O1"
+export npm_config_jobs=1
+export NODE_OPTIONS="--max-old-space-size=256"
+npm config set unsafe-perm true
+npm config set legacy-peer-deps true
+npm install --production --unsafe-perm --build-from-source
+
 
 \\wsl$\Ubuntu\home\YourWSLUsername\gymnasticon
 or
