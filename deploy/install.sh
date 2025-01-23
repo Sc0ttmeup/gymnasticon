@@ -1,5 +1,3 @@
-# /deploy/install.sh
-
 #!/bin/bash
 set -e
 
@@ -111,7 +109,6 @@ export NODE_OPTIONS="--max-old-space-size=256"
 npm config set unsafe-perm true
 npm config set legacy-peer-deps true
 
-# a) Optionally install Babel locally (faster). Or do global if you prefer.
 echo "[NPM] Installing Babel locally..."
 npm install \
   @babel/cli \
@@ -122,10 +119,6 @@ npm install \
 
 echo "[NPM] Installing production deps..."
 npm install --production --unsafe-perm --build-from-source
-
-# If you truly need dev deps on the Pi, uncomment:
-# echo "[NPM] Installing dev deps..."
-# npm install --only=dev --unsafe-perm --build-from-source
 
 # 8. Configure Babel
 cat <<EOF > .babelrc
@@ -158,12 +151,23 @@ if [ ! -f lib/app/cli.js ]; then
 fi
 echo "[BABEL] Build success, found lib/app/cli.js"
 
+# Create configuration file
+echo "[CONFIG] Creating configuration file..."
+cat <<EOF > "$INSTALL_DIR/gymnasticon.json"
+{
+  "server-name": "Gymnasticon",
+  "ant-device-id": 11234,
+  "server-ping-interval": 1
+}
+EOF
+
 # 10. Install systemd service
 cat <<EOF | sudo tee /etc/systemd/system/gymnasticon.service
 [Unit]
 Description=Gymnasticon
 After=bluetooth.target
 Requires=bluetooth.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
@@ -171,9 +175,9 @@ Environment=PATH=/usr/local/bin:/opt/gymnasticon/node_modules/.bin
 WorkingDirectory=$INSTALL_DIR
 User=$USER
 Group=$USER
-ExecStart=/usr/local/bin/node $INSTALL_DIR/lib/app/cli.js
-Restart=always
+ExecStart=/usr/local/bin/node $INSTALL_DIR/lib/app/cli.js --config gymnasticon.json
 RestartSec=1
+Restart=always
 AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
 NoNewPrivileges=true
 
