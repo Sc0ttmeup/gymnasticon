@@ -22,17 +22,23 @@ show_progress() {
     local message=$2
     local elapsed=$SECONDS
     
-    # Extract numeric part and handle fractional steps
-    local step_num=$(echo "$step" | grep -o '^[0-9]*' || echo "0")
-    
-    if [ "$step_num" -gt 0 ] 2>/dev/null; then
-        local progress=$(echo "scale=2; ($step_num * 100) / $TOTAL_STEPS" | bc)
-        local remaining_time=$(echo "scale=0; ($elapsed * ($TOTAL_STEPS - $step_num)) / $step_num" | bc)
+    local step_num
+    step_num=$(echo "$step" | grep -o '^[0-9]*' || echo "0")
+
+    if [[ "$step_num" -gt 0 ]]; then
+        local progress
+        progress=$(echo "scale=2; ($step_num * 100) / $TOTAL_STEPS" | bc)
+        # Estimate remaining time based on how many steps remain vs how many have elapsed
+        local remaining_time
+        if [[ "$step_num" -gt 0 ]]; then
+            remaining_time=$(echo "scale=0; ($elapsed * ($TOTAL_STEPS - $step_num)) / $step_num" | bc)
+        else
+            remaining_time=0
+        fi
         echo "[${progress}% - Step $step/$TOTAL_STEPS - Est. ${remaining_time}s remaining] $message"
     else
         echo "[In Progress - Step $step/$TOTAL_STEPS] $message"
     fi
-    
     echo "Current runtime: ${elapsed}s"
 }
 
@@ -40,9 +46,11 @@ show_build_progress() {
     local pid=$1
     local step=$2
     local count=0
-    while kill -0 $pid 2>/dev/null; do
-        printf "\r[Step $step - Running for ${count}s] "
-        for ((i=0; i<count%4; i++)); do printf "."; done
+    while kill -0 "$pid" 2>/dev/null; do
+        printf "\r[Step %s - Running for %ds] " "$step" "$count"
+        for ((i=0; i<count%4; i++)); do 
+            printf "." 
+        done
         sleep 1
         ((count++))
     done
@@ -50,6 +58,7 @@ show_build_progress() {
 }
 
 npm_install_with_timeout() {
+    # 5-minute (300s) timeout, can adjust if needed
     timeout 300 "$@" || {
         echo "Command timed out, retrying..."
         sleep 5
@@ -65,6 +74,15 @@ handle_error() {
 
 setup_swap() {
     show_progress "Setup" "Creating temporary swap file..."
+    
+    # PROACTIVE CLEANUP: remove any leftover swapfile that might be busy
+    if [ -f /swapfile ]; then
+        echo "Detected existing /swapfile. Attempting to remove it..."
+        sudo swapoff /swapfile 2>/dev/null || true
+        sudo rm -f /swapfile
+    fi
+
+    # Now safely create a fresh swapfile
     sudo fallocate -l ${SWAP_SIZE}M /swapfile
     sudo chmod 600 /swapfile
     sudo mkswap /swapfile
@@ -74,7 +92,7 @@ setup_swap() {
 cleanup_swap() {
     if [ -f /swapfile ]; then
         show_progress "Cleanup" "Removing temporary swap file..."
-        sudo swapoff /swapfile
+        sudo swapoff /swapfile 2>/dev/null || true
         sudo rm -f /swapfile
     fi
 }
@@ -107,10 +125,10 @@ check_node_version() {
 
 validate_permissions() {
     if ! groups | grep -q bluetooth; then
-        sudo usermod -a -G bluetooth $USER
+        sudo usermod -a -G bluetooth "$USER"
     fi
     if ! groups | grep -q dialout; then
-        sudo usermod -a -G dialout $USER
+        sudo usermod -a -G dialout "$USER"
     fi
 }
 
@@ -138,7 +156,7 @@ show_progress "1/8" "Starting installation of Gymnasticon..."
 show_progress "2/8" "Removing previous installations..."
 sudo systemctl stop gymnasticon 2>/dev/null || true
 sudo systemctl disable gymnasticon 2>/dev/null || true
-sudo rm -rf $INSTALL_DIR
+sudo rm -rf "$INSTALL_DIR"
 sudo rm -f /etc/systemd/system/gymnasticon.service
 sudo systemctl daemon-reload
 
@@ -186,12 +204,12 @@ check_node_version
 
 # Create installation directory with proper permissions
 show_progress "6.1/8" "Setting up Gymnasticon..."
-sudo mkdir -p $INSTALL_DIR
-sudo chown $USER:$USER $INSTALL_DIR
-cd $INSTALL_DIR || exit 1
+sudo mkdir -p "$INSTALL_DIR"
+sudo chown "$USER:$USER" "$INSTALL_DIR"
+cd "$INSTALL_DIR" || exit 1
 
 # Repository setup
-git clone --depth 1 --branch $BRANCH $REPO_URL .
+git clone --depth 1 --branch "$BRANCH" "$REPO_URL" .
 
 # Dependencies and build
 show_progress "6.2/8" "Configuring build environment..."
@@ -210,17 +228,18 @@ npm config set legacy-peer-deps true
 setup_swap
 
 show_progress "6.3/8" "Installing Babel tools..."
-# Install babel and its plugins
+# Install Babel globally (could do locally if you prefer)
 npm_install_with_timeout npm install -g @babel/cli @babel/core @babel/plugin-transform-modules-commonjs --no-audit --no-fund --unsafe-perm --legacy-peer-deps &
 BABEL_PID=$!
 show_build_progress $BABEL_PID "6.3/8"
 
 show_progress "6.4/8" "Installing project dependencies..."
-# Install project dependencies
+# 1) production dependencies
 npm_install_with_timeout npm install --no-audit --no-fund --production --unsafe-perm --build-from-source --jobs=1 --legacy-peer-deps &
 NPM_PID=$!
 show_build_progress $NPM_PID "6.4/8"
 
+# 2) dev dependencies
 npm_install_with_timeout npm install --no-audit --no-fund --only=dev --unsafe-perm --build-from-source --jobs=1 --legacy-peer-deps &
 NPM_DEV_PID=$!
 show_build_progress $NPM_DEV_PID "6.4/8"
@@ -233,7 +252,8 @@ mkdir -p lib/app
 
 show_progress "6.5/8" "Configuring Babel..."
 # Configure babel with proper module transformation
-echo '{
+cat > .babelrc <<EOF
+{
   "presets": [
     ["@babel/preset-env", {
       "targets": {
@@ -245,8 +265,10 @@ echo '{
   "plugins": [
     "@babel/plugin-transform-modules-commonjs"
   ]
-}' > .babelrc
+}
+EOF
 
+show_progress "6.55/8" "Switching package.json to commonjs..."
 # Set package type to commonjs
 jq '. + {"type": "commonjs"}' package.json > package.json.tmp && mv package.json.tmp package.json
 
@@ -271,7 +293,7 @@ else
 fi
 
 # Set permissions
-sudo chown -R $USER:$USER $INSTALL_DIR
+sudo chown -R "$USER:$USER" "$INSTALL_DIR"
 validate_permissions
 
 show_progress "7.2/8" "Configuring service..."
