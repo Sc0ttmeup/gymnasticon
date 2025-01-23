@@ -158,3 +158,7 @@ npm install --production --unsafe-perm --build-from-source
 \\wsl$\Ubuntu\home\YourWSLUsername\gymnasticon
 or
 C:\Users\YourUsername\AppData\Local\Packages\CanonicalGroupLimited.Ubuntu_79rhkp1fndgsc\LocalState\rootfs\home\YourWSLUsername\gymnasticon\2023-05-03-raspios-bullseye-armhf-lite.img
+
+{
+  "server-name": "Gymnasticon"
+}
