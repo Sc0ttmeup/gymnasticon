@@ -151,13 +151,10 @@ if [ ! -f lib/app/cli.js ]; then
 fi
 echo "[BABEL] Build success, found lib/app/cli.js"
 
-# Create configuration file
-echo "[CONFIG] Creating configuration file..."
+# Create config file if you like, or skip
 cat <<EOF > "$INSTALL_DIR/gymnasticon.json"
 {
-  "server-name": "Gymnasticon",
-  "ant-device-id": 11234,
-  "server-ping-interval": 1
+  "server-name": "Gymnasticon"
 }
 EOF
 
@@ -175,7 +172,14 @@ Environment=PATH=/usr/local/bin:/opt/gymnasticon/node_modules/.bin
 WorkingDirectory=$INSTALL_DIR
 User=$USER
 Group=$USER
-ExecStart=/usr/local/bin/node $INSTALL_DIR/lib/app/cli.js --config gymnasticon.json
+# Added flags: --ant --ant-bsc --ble-csc --ble-device-name
+ExecStart=/usr/local/bin/node $INSTALL_DIR/lib/app/cli.js \\
+  --config gymnasticon.json \\
+  --ant \\
+  --ant-bsc \\
+  --ble-csc \\
+  --ble-device-name "Gymnasticon"
+
 RestartSec=1
 Restart=always
 AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
