@@ -120,6 +120,9 @@ npm install \
 echo "[NPM] Installing production deps..."
 npm install --production --unsafe-perm --build-from-source
 
+echo "[NPM] Installing gymnasticon globally..."
+npm install -g
+
 # 8. Configure Babel
 cat <<EOF > .babelrc
 {
@@ -168,18 +171,11 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-Environment=PATH=/usr/local/bin:/opt/gymnasticon/node_modules/.bin
-WorkingDirectory=$INSTALL_DIR
+Environment=PATH=/opt/gymnasticon/node/bin
+WorkingDirectory=/opt/gymnasticon
 User=$USER
 Group=$USER
-# Added flags: --ant --ant-bsc --ble-csc --ble-device-name
-ExecStart=/usr/local/bin/node $INSTALL_DIR/lib/app/cli.js \\
-  --config gymnasticon.json \\
-  --ant \\
-  --ant-bsc \\
-  --ble-csc \\
-  --ble-device-name "Gymnasticon"
-
+ExecStart=/opt/gymnasticon/node/bin/gymnasticon
 RestartSec=1
 Restart=always
 AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
@@ -188,6 +184,7 @@ NoNewPrivileges=true
 [Install]
 WantedBy=multi-user.target
 EOF
+
 
 sudo systemctl daemon-reload
 sudo systemctl enable gymnasticon
