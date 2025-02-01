@@ -1,4 +1,7 @@
 #!/bin/bash
+# File: install.sh
+# Folder: /opt/gymnasticon
+
 set -e
 
 REPO_URL="https://github.com/4o4R/gymnasticon.git"
@@ -120,9 +123,6 @@ npm install \
 echo "[NPM] Installing production deps..."
 npm install --production --unsafe-perm --build-from-source
 
-echo "[NPM] Installing gymnasticon globally..."
-npm install -g
-
 # 8. Configure Babel
 cat <<EOF > .babelrc
 {
@@ -144,9 +144,14 @@ jq '. + {"type":"commonjs"}' package.json > package.json.tmp && mv package.json.
 echo "[BABEL] Transpiling..."
 npx babel src --out-dir lib
 
+# 9. Optionally install the package globally (move this after building!)
+echo "[NPM] Installing gymnasticon globally..."
+# Note: Using '.' installs the package from the current directory.
+npm install -g .
+
 cleanup_swap
 
-# 9. Verify output
+# 10. Verify output
 if [ ! -f lib/app/cli.js ]; then
     echo "ERROR: lib/app/cli.js not found! Build failed."
     ls -la lib/app
@@ -161,7 +166,9 @@ cat <<EOF > "$INSTALL_DIR/gymnasticon.json"
 }
 EOF
 
-# 10. Install systemd service
+# 11. Install systemd service
+# Adjust ExecStart to point to the globally installed binary if needed.
+# For example, if the global binary is in /usr/local/bin, update accordingly.
 cat <<EOF | sudo tee /etc/systemd/system/gymnasticon.service
 [Unit]
 Description=Gymnasticon
@@ -171,11 +178,13 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-Environment=PATH=/opt/gymnasticon/node/bin
+# Update PATH if your global npm bin location is not /opt/gymnasticon/node/bin
+Environment=PATH=/usr/local/bin:/opt/gymnasticon/node/bin
 WorkingDirectory=/opt/gymnasticon
 User=$USER
 Group=$USER
-ExecStart=/opt/gymnasticon/node/bin/gymnasticon
+# You can use the full path to the global binary; e.g., /usr/local/bin/gymnasticon
+ExecStart=/usr/local/bin/gymnasticon
 RestartSec=1
 Restart=always
 AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
@@ -185,12 +194,11 @@ NoNewPrivileges=true
 WantedBy=multi-user.target
 EOF
 
-
 sudo systemctl daemon-reload
 sudo systemctl enable gymnasticon
 sudo systemctl start gymnasticon
 
-# 11. Check service
+# 12. Check service
 sleep 3
 if systemctl is-active --quiet gymnasticon; then
     echo "[SERVICE] Gymnasticon is active and running!"
