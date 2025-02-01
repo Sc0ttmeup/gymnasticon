@@ -158,7 +158,7 @@ sudo chown -R pi:pi "$INSTALL_DIR"
 
 ### 13. Install the Original Systemd Service File ###
 echo "[SERVICE] Installing systemd service file..."
-sudo tee /etc/systemd/system/gymnasticon.service > /dev/null <<'EOF'
+sudo tee /etc/systemd/system/gymnasticon.service > /dev/null <<EOF
 [Unit]
 Description=Gymnasticon
 After=bluetooth.target
@@ -166,13 +166,12 @@ Requires=bluetooth.target
 StartLimitIntervalSec=0
 
 [Service]
-
 Type=simple
-Environment=PATH=/opt/gymnasticon/node/bin
+Environment=PATH=/opt/gymnasticon/node/bin:${NODE_PATH%/*}
 WorkingDirectory=/opt/gymnasticon
 User=pi
 Group=pi
-ExecStart=/usr/bin/node /opt/gymnasticon/node/bin/gymnasticon
+ExecStart=${NODE_PATH} /opt/gymnasticon/node/bin/gymnasticon
 RestartSec=1
 Restart=always
 
