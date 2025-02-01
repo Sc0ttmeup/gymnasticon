@@ -1,26 +1,26 @@
 #!/bin/bash
 # File: install.sh
-# Folder: /opt/gymnasticon
-# Description: Full installation script for Gymnasticon on a Raspberry Pi Zero.
-#              This script clones, builds (transpiles) and configures Gymnasticon,
-#              creates a configuration file enabling both ANT+ and Bluetooth broadcasting,
-#              and sets up a systemd service running as root.
-#              It uses 'npm link' (instead of 'npm install -g .') to globally install the package.
+# Folder: deploy
+# Description: Installs Gymnasticon using the original repository files and service file.
+#              It clones the repository into /opt/gymnasticon, installs dependencies,
+#              builds the code using Babel, creates a default configuration file,
+#              sets up a local node/bin folder with a symlink to the Gymnasticon binary,
+#              and installs the original systemd service (running as user pi).
 
 set -e
 
-# --- Configuration Variables ---
+### Configuration Variables ###
 REPO_URL="https://github.com/4o4R/gymnasticon.git"
 BRANCH="master"
 INSTALL_DIR="/opt/gymnasticon"
 SWAP_SIZE_MB=1024
 LOG_FILE="/var/log/gymnasticon-install.log"
 
-# --- Start Logging ---
-# Logging to LOG_FILE (using sudo so we can write to /var/log)
+### Start Logging ###
+# (Logging to LOG_FILE using sudo so we can write to /var/log)
 exec > >(sudo tee -a "$LOG_FILE") 2>&1
 
-# --- Error Handling ---
+### Error Handling ###
 handle_error() {
     echo "ERROR: Something broke at line $1"
     cleanup_swap
@@ -28,7 +28,7 @@ handle_error() {
 }
 trap 'handle_error $LINENO' ERR
 
-# --- Swap File Functions ---
+### Swap Functions (helpful on a memory‐constrained RPi Zero) ###
 cleanup_swap() {
     if [ -f /swapfile ]; then
         echo "[SWAP] Removing old /swapfile..."
@@ -46,40 +46,35 @@ setup_swap() {
     sudo swapon /swapfile
 }
 
-# --- APT Lock Cleanup ---
+### Clean Up APT Locks ###
 cleanup_locks() {
     echo "[APT] Cleaning up package manager locks..."
     while sudo lsof /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
         echo "APT is busy, waiting..."
         sleep 5
     done
-
     sudo killall apt apt-get 2>/dev/null || true
-    sudo rm -f /var/lib/apt/lists/lock
-    sudo rm -f /var/cache/apt/archives/lock
-    sudo rm -f /var/lib/dpkg/lock*
-    sudo rm -f /var/lib/dpkg/lock-frontend
+    sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* /var/lib/dpkg/lock-frontend
     sudo dpkg --configure -a
     sleep 2
 }
 
 echo "=== Gymnasticon Install Script Starting ==="
 
-# --- 1. Stop and Remove Previous Installation ---
-echo "[SERVICE] Stopping and removing old Gymnasticon installation..."
+### 1. Stop and Remove Any Previous Installation ###
+echo "[SERVICE] Stopping and removing any previous Gymnasticon installation..."
 sudo systemctl stop gymnasticon 2>/dev/null || true
 sudo systemctl disable gymnasticon 2>/dev/null || true
 sudo rm -rf "$INSTALL_DIR"
 sudo rm -f /etc/systemd/system/gymnasticon.service
 sudo systemctl daemon-reload
 
-# --- 2. Clean APT Locks ---
+### 2. Clean APT Locks and Update Packages ###
 cleanup_locks
-
-# --- 3. Update APT and Install Dependencies ---
 echo "[APT] Updating package lists..."
 sudo apt-get update
 
+### 3. Install Required System Dependencies ###
 echo "[APT] Installing dependencies..."
 sudo apt-get install -y \
   git \
@@ -92,91 +87,50 @@ sudo apt-get install -y \
   curl \
   jq
 
-# --- 4. Ensure Node.js Is Installed (v14.x recommended) ---
+### 4. Verify Node.js is Installed ###
 if ! command -v node >/dev/null; then
-  echo "ERROR: Node.js not found (v14.x is recommended)."
+  echo "ERROR: Node.js not found (v12.16.1 or later is required)."
   exit 1
 fi
 echo "[NODE] Found Node: $(node -v)"
 
-# --- 5. Create Installation Directory ---
+### 5. Clone the Gymnasticon Repository into /opt/gymnasticon ###
+echo "[GIT] Creating installation directory and cloning repository..."
 sudo mkdir -p "$INSTALL_DIR"
+# Set ownership to user pi so the service (running as pi) can write as needed.
+sudo chown pi:pi "$INSTALL_DIR"
 cd "$INSTALL_DIR"
-
-# --- 6. Clone the Repository ---
-echo "[GIT] Cloning Gymnasticon from $REPO_URL..."
+# Clone the repository using the original branch.
 git clone --depth 1 --branch "$BRANCH" "$REPO_URL" .
 
-# --- 7. Set Up Swap Space ---
+### 6. Set Up Swap Space for the Build (RPi Zero may need extra memory) ###
 setup_swap
 
-# --- 8. Set Up Environment Variables for npm Build ---
-echo "[NPM] Setting up environment variables..."
+### 7. Set Up npm Environment Variables ###
+echo "[NPM] Setting up npm environment..."
 export npm_config_build_from_source=true
 export CFLAGS="-O1"
 export CXXFLAGS="-O1"
 export npm_config_jobs=1
 export NODE_OPTIONS="--max-old-space-size=256"
-
 npm config set unsafe-perm true
 npm config set legacy-peer-deps true
 
-# --- 9. Install Babel Packages ---
-echo "[NPM] Installing Babel packages..."
-npm install \
-  @babel/cli \
-  @babel/core \
-  @babel/plugin-transform-modules-commonjs \
-  @babel/preset-env \
-  --no-save --build-from-source --unsafe-perm
-
-# --- 10. Install Production Dependencies ---
+### 8. Install Production Dependencies ###
 echo "[NPM] Installing production dependencies..."
-npm install --production --unsafe-perm --build-from-source
+npm install --production
 
-# --- 11. Configure Babel (.babelrc) ---
-echo "[BABEL] Creating .babelrc..."
-cat <<EOF > .babelrc
-{
-  "presets": [
-    ["@babel/preset-env", {
-      "targets": { "node": "14" },
-      "modules": "commonjs"
-    }]
-  ],
-  "plugins": [
-    "@babel/plugin-transform-modules-commonjs"
-  ]
-}
-EOF
+### 9. Build the Code Using Babel ###
+echo "[BUILD] Building (transpiling) the source code..."
+npm run build
 
-echo "[BABEL] Updating package.json to use commonjs modules..."
-jq '. + {"type":"commonjs"}' package.json > package.json.tmp && mv package.json.tmp package.json
-
-# --- 12. Transpile the Source Code ---
-echo "[BABEL] Transpiling source files..."
-npx babel src --out-dir lib
-
-# --- 13. Globally Install via npm link Instead of npm install -g ---
-echo "[NPM] Cleaning npm cache..."
-npm cache clean --force
-
-echo "[NPM] Linking Gymnasticon globally..."
-npm link
-
+### 10. Remove Swap Space After the Build ###
 cleanup_swap
 
-# --- 14. Verify Build Output ---
-if [ ! -f lib/app/cli.js ]; then
-    echo "ERROR: lib/app/cli.js not found! Build failed."
-    ls -la lib/app
-    exit 1
-fi
-echo "[BABEL] Build success; lib/app/cli.js exists."
-
-# --- 15. Create the Configuration File ---
-echo "[CONFIG] Creating configuration file..."
-cat <<EOF > "$INSTALL_DIR/gymnasticon.json"
+### 11. Create the Default Configuration File (if not present) ###
+if [ ! -f "$INSTALL_DIR/gymnasticon.json" ]; then
+  echo "[CONFIG] Creating default configuration file..."
+  cat <<EOF > "$INSTALL_DIR/gymnasticon.json"
 {
   "server-name": "Gymnasticon",
   "broadcast": {
@@ -191,11 +145,21 @@ cat <<EOF > "$INSTALL_DIR/gymnasticon.json"
   }
 }
 EOF
+fi
 
-# --- 16. Create and Install systemd Service ---
-# Running as root (User/Group lines are omitted)
-echo "[SERVICE] Creating systemd service file..."
-cat <<EOF | sudo tee /etc/systemd/system/gymnasticon.service
+### 12. Set Up Local Node/Bin for the Gymnasticon Binary ###
+# The original service expects the binary at /opt/gymnasticon/node/bin/gymnasticon.
+echo "[SETUP] Creating local node/bin directory and linking the binary..."
+sudo mkdir -p "$INSTALL_DIR/node/bin"
+# The package.json 'bin' field creates a symlink in node_modules/.bin.
+# We link that to our node/bin folder.
+sudo ln -sf "$INSTALL_DIR/node_modules/.bin/gymnasticon" "$INSTALL_DIR/node/bin/gymnasticon"
+# Ensure proper ownership (user pi).
+sudo chown -R pi:pi "$INSTALL_DIR"
+
+### 13. Install the Original Systemd Service File ###
+echo "[SERVICE] Installing systemd service file..."
+sudo tee /etc/systemd/system/gymnasticon.service > /dev/null <<'EOF'
 [Unit]
 Description=Gymnasticon
 After=bluetooth.target
@@ -203,11 +167,16 @@ Requires=bluetooth.target
 StartLimitIntervalSec=0
 
 [Service]
+
 Type=simple
-WorkingDirectory=${INSTALL_DIR}
-ExecStart=/usr/local/bin/gymnasticon
+Environment=PATH=/opt/gymnasticon/node/bin
+WorkingDirectory=/opt/gymnasticon
+User=pi
+Group=pi
+ExecStart=/opt/gymnasticon/node/bin/gymnasticon
 RestartSec=1
 Restart=always
+
 AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
 NoNewPrivileges=true
 
@@ -215,21 +184,19 @@ NoNewPrivileges=true
 WantedBy=multi-user.target
 EOF
 
-# --- 17. Reload systemd and Start the Service ---
+### 14. Reload systemd, Enable, and Start the Service ###
 echo "[SERVICE] Reloading systemd daemon and starting Gymnasticon service..."
 sudo systemctl daemon-reload
 sudo systemctl enable gymnasticon
 sudo systemctl start gymnasticon
 
-# Optional: Wait a few seconds to allow hardware initialization
+### 15. Verify the Service Status ###
 sleep 5
-
-# --- 18. Check Service Status ---
 if systemctl is-active --quiet gymnasticon; then
     echo "[SERVICE] Gymnasticon service is active and running!"
 else
     echo "ERROR: Gymnasticon service failed to start."
-    journalctl -u gymnasticon -n 50
+    sudo journalctl -u gymnasticon -n 50
     exit 1
 fi
 
