@@ -5,12 +5,8 @@
   "engines": {
     "node": ">=12.16.1"
   },
-  "type": "module",
   "bin": {
     "gymnasticon": "./lib/app/cli.js"
-  },
-  "exports": {
-    ".": "./lib/app/cli.js"
   },
   "scripts": {
     "prepublishOnly": "npm run build",
