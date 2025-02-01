@@ -172,7 +172,7 @@ Environment=PATH=/opt/gymnasticon/node/bin
 WorkingDirectory=/opt/gymnasticon
 User=pi
 Group=pi
-ExecStart=/opt/gymnasticon/node/bin/gymnasticon
+ExecStart=/usr/bin/node /opt/gymnasticon/node/bin/gymnasticon
 RestartSec=1
 Restart=always
 
