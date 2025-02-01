@@ -2,7 +2,7 @@
 # File: install.sh
 # Folder: deploy
 # Description: Installs Gymnasticon using the original repository files and service file.
-#              It clones the repository into /opt/gymnasticon, installs dependencies,
+#              It clones the repository into /opt/gymnasticon, installs all dependencies,
 #              builds the code using Babel, creates a default configuration file,
 #              sets up a local node/bin folder with a symlink to the Gymnasticon binary,
 #              and installs the original systemd service (running as user pi).
@@ -54,7 +54,7 @@ cleanup_locks() {
         sleep 5
     done
     sudo killall apt apt-get 2>/dev/null || true
-    sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock* /var/lib/dpkg/lock-frontend
+    sudo rm -f /var/lib/dpkg/lock-frontend /var/cache/apt/archives/lock /var/lib/dpkg/lock*
     sudo dpkg --configure -a
     sleep 2
 }
@@ -116,9 +116,9 @@ export NODE_OPTIONS="--max-old-space-size=256"
 npm config set unsafe-perm true
 npm config set legacy-peer-deps true
 
-### 8. Install Production Dependencies ###
-echo "[NPM] Installing production dependencies..."
-npm install --production
+### 8. Install All Dependencies (including devDependencies) ###
+echo "[NPM] Installing all dependencies (including devDependencies)..."
+npm install
 
 ### 9. Build the Code Using Babel ###
 echo "[BUILD] Building (transpiling) the source code..."
@@ -201,3 +201,4 @@ else
 fi
 
 echo "=== Gymnasticon installation complete! ==="
+
