@@ -17,7 +17,7 @@ SWAP_SIZE_MB=1024
 LOG_FILE="/var/log/gymnasticon-install.log"
 
 ### Start Logging ###
-# (Logging to LOG_FILE using sudo so we can write to /var/log)
+# Logging to LOG_FILE using sudo so we can write to /var/log
 exec > >(sudo tee -a "$LOG_FILE") 2>&1
 
 ### Error Handling ###
@@ -100,7 +100,6 @@ sudo mkdir -p "$INSTALL_DIR"
 # Set ownership to user pi so the service (running as pi) can write as needed.
 sudo chown pi:pi "$INSTALL_DIR"
 cd "$INSTALL_DIR"
-# Clone the repository using the original branch.
 git clone --depth 1 --branch "$BRANCH" "$REPO_URL" .
 
 ### 6. Set Up Swap Space for the Build (RPi Zero may need extra memory) ###
@@ -151,9 +150,9 @@ fi
 # The original service expects the binary at /opt/gymnasticon/node/bin/gymnasticon.
 echo "[SETUP] Creating local node/bin directory and linking the binary..."
 sudo mkdir -p "$INSTALL_DIR/node/bin"
-# The package.json 'bin' field creates a symlink in node_modules/.bin.
-# We link that to our node/bin folder.
-sudo ln -sf "$INSTALL_DIR/node_modules/.bin/gymnasticon" "$INSTALL_DIR/node/bin/gymnasticon"
+# Instead of linking from node_modules/.bin, link directly to the built file.
+sudo ln -sf "$INSTALL_DIR/lib/app/cli.js" "$INSTALL_DIR/node/bin/gymnasticon"
+sudo chmod +x "$INSTALL_DIR/lib/app/cli.js"
 # Ensure proper ownership (user pi).
 sudo chown -R pi:pi "$INSTALL_DIR"
 
@@ -201,4 +200,3 @@ else
 fi
 
 echo "=== Gymnasticon installation complete! ==="
-
