@@ -1,9 +1,13 @@
 #!/bin/bash
 # File: install.sh
 # Folder: deploy
-# Description: Installs Gymnasticon with Node.js v14, proper dependency management, and patches the systemd service file.
-#              This version installs Node.js via NodeSource, creates symlinks for node and npm,
-#              and sets the PATH for the service.
+# Description: Installs Gymnasticon with Node.js v14 on ARMv6 (RPi Zero).
+#              Downloads the official Node.js v14 binary tarball for ARMv6,
+#              installs it to /usr/local, creates symlinks for node and npm,
+#              and sets up the Gymnasticon service with the proper PATH.
+#
+# Note: This script uses Node.js v14.21.3. To change the version,
+#       update the NODE_VERSION variable accordingly.
 
 set -e
 
@@ -12,6 +16,8 @@ REPO_URL="https://github.com/4o4R/gymnasticon.git"
 BRANCH="master"
 INSTALL_DIR="/opt/gymnasticon"
 LOG_FILE="/var/log/gymnasticon-install.log"
+NODE_VERSION="14.21.3"
+NODE_DISTRO="node-v${NODE_VERSION}-linux-armv6l"
 
 ### Start Logging ###
 # Logging to LOG_FILE using sudo so we can write to /var/log
@@ -65,23 +71,24 @@ sudo apt-get install -y \
   curl \
   jq
 
-### 4. Install and Configure Node.js (Version 14) ###
-echo "[NODE] Setting up Node.js v14..."
-# Install Node.js v14 from NodeSource repository
-curl -fsSL https://deb.nodesource.com/setup_14.x | sudo -E bash -
-sudo apt-get install -y nodejs
+### 4. Install and Configure Node.js (Version 14 for ARMv6) ###
+echo "[NODE] Installing Node.js v${NODE_VERSION} for ARMv6..."
+# Download the official Node.js binary tarball for ARMv6
+curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/${NODE_DISTRO}.tar.xz" -o "${NODE_DISTRO}.tar.xz"
+
+# Extract the tarball
+tar -xf "${NODE_DISTRO}.tar.xz"
+
+# Copy the extracted files to /usr/local (requires sudo)
+sudo cp -R "${NODE_DISTRO}"/* /usr/local/
 
 # Verify Node.js installation
-NODE_VERSION=$(node -v 2>/dev/null || true)
-if [ -z "$NODE_VERSION" ]; then
-    echo "[NODE] 'node' command not found. Checking for 'nodejs'..."
-    NODE_VERSION=$(nodejs -v 2>/dev/null || true)
-fi
-if [ -z "$NODE_VERSION" ]; then
+NODE_VERSION_INSTALLED=$(node -v 2>/dev/null || true)
+if [ -z "$NODE_VERSION_INSTALLED" ]; then
     echo "ERROR: Node.js installation failed."
     exit 1
 fi
-echo "[NODE] Node.js version: $NODE_VERSION"
+echo "[NODE] Node.js version: $NODE_VERSION_INSTALLED"
 echo "[NODE] npm version: $(npm -v)"
 
 # Unconditionally create symlinks for node and npm in /usr/bin so that /usr/bin/env finds them.
