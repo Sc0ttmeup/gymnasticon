@@ -1,11 +1,10 @@
 #!/bin/bash
 # File: install.sh
 # Folder: deploy
-# Description: Installs Gymnasticon using the original repository files and service file.
-#              It clones the repository into /opt/gymnasticon, installs all dependencies,
-#              builds the code using Babel, creates a default configuration file,
-#              sets up a local node/bin folder with a symlink to the Gymnasticon binary,
-#              and installs the original systemd service (running as user pi).
+# Description: Installs Gymnasticon by cloning the repository into /opt/gymnasticon,
+#              installing dependencies, building the code with Babel, setting up a local
+#              node/bin folder with a symlink to the Gymnasticon binary, and installing
+#              the systemd service (running as user pi).
 
 set -e
 
@@ -89,8 +88,14 @@ sudo apt-get install -y \
 
 ### 4. Verify Node.js is Installed ###
 if ! command -v node >/dev/null; then
-  echo "ERROR: Node.js not found (v12.16.1 or later is required)."
-  exit 1
+  # If node is not found, check if nodejs exists and create a symlink.
+  if command -v nodejs >/dev/null; then
+    echo "[NODE] 'node' not found, but 'nodejs' is available. Creating symlink..."
+    sudo ln -sf "$(which nodejs)" /usr/bin/node
+  else
+    echo "ERROR: Node.js not found (v12.16.1 or later is required)."
+    exit 1
+  fi
 fi
 echo "[NODE] Found Node: $(node -v)"
 
@@ -126,8 +131,7 @@ npm run build
 ### 10. Remove Swap Space After the Build ###
 cleanup_swap
 
-
-### 12. Set Up Local Node/Bin for the Gymnasticon Binary ###
+### 11. Set Up Local Node/Bin for the Gymnasticon Binary ###
 # The original service expects the binary at /opt/gymnasticon/node/bin/gymnasticon.
 echo "[SETUP] Creating local node/bin directory and linking the binary..."
 sudo mkdir -p "$INSTALL_DIR/node/bin"
@@ -137,7 +141,7 @@ sudo chmod +x "$INSTALL_DIR/lib/app/cli.js"
 # Ensure proper ownership (user pi).
 sudo chown -R pi:pi "$INSTALL_DIR"
 
-### 13. Install the Original Systemd Service File ###
+### 12. Install the Original Systemd Service File ###
 echo "[SERVICE] Installing systemd service file..."
 sudo cp "${INSTALL_DIR}/deploy/gymnasticon.service" /etc/systemd/system/gymnasticon.service
 echo "[SERVICE] Reloading systemd daemon and starting Gymnasticon service..."
@@ -145,7 +149,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable gymnasticon
 sudo systemctl start gymnasticon
 
-### 15. Verify the Service Status ###
+### 13. Verify the Service Status ###
 sleep 5
 if systemctl is-active --quiet gymnasticon; then
     echo "[SERVICE] Gymnasticon service is active and running!"
