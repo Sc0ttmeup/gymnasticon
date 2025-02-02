@@ -43,13 +43,12 @@ sudo ln -sf /usr/local/bin/npm /usr/bin/npm
 echo "Verifying Node.js installation..."
 node -v
 npm -v
-
-# Install Gymnasticon
+# Install Gymnasticon with proper permissions
 echo "Installing Gymnasticon..."
 sudo mkdir -p "$INSTALL_DIR"
+sudo chown -R pi:pi "$INSTALL_DIR"  # Set correct ownership
 cd "$INSTALL_DIR"
 git clone --depth 1 https://github.com/4o4R/gymnasticon.git .
-
 # NPM configuration for RPi Zero
 echo "Configuring npm for RPi Zero..."
 export npm_config_build_from_source=true
