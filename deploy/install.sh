@@ -167,11 +167,11 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-Environment=PATH=/opt/gymnasticon/node/bin:${NODE_PATH%/*}
+Environment=PATH=/usr/local/bin:/usr/bin:/bin:/opt/gymnasticon/node/bin
 WorkingDirectory=/opt/gymnasticon
 User=pi
 Group=pi
-ExecStart=${NODE_PATH} /opt/gymnasticon/node/bin/gymnasticon
+ExecStart=$(which node) /opt/gymnasticon/node/bin/gymnasticon
 RestartSec=1
 Restart=always
 
@@ -181,7 +181,6 @@ NoNewPrivileges=true
 [Install]
 WantedBy=multi-user.target
 EOF
-
 ### 14. Reload systemd, Enable, and Start the Service ###
 echo "[SERVICE] Reloading systemd daemon and starting Gymnasticon service..."
 sudo systemctl daemon-reload
