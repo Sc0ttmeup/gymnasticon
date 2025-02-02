@@ -81,7 +81,7 @@ echo "[NODE] Installing Node.js v${NODE_VERSION} for ARMv6..."
 mkdir -p "${TEMP_DIR}"
 cd "${TEMP_DIR}"
 
-# Verify and download Node.js binary
+# Download and verify the official Node.js binary tarball for ARMv6
 NODE_DOWNLOAD_URL="https://nodejs.org/dist/v${NODE_VERSION}/${NODE_DISTRO}.tar.xz"
 if ! curl --output /dev/null --silent --head --fail "$NODE_DOWNLOAD_URL"; then
     echo "ERROR: Node.js binary not available at $NODE_DOWNLOAD_URL"
@@ -173,4 +173,3 @@ else
 fi
 
 echo "=== Gymnasticon installation complete! ==="
-
