@@ -126,11 +126,6 @@ npm run build
 ### 10. Remove Swap Space After the Build ###
 cleanup_swap
 
-### 11. Create the Default Configuration File (if not present) ###
-if [ ! -f "$INSTALL_DIR/gymnasticon.json" ]; then
-  echo "[CONFIG] Creating default configuration file..."
-  cat <<EOF > "$INSTALL_DIR/gymnasticon.json"
-
 
 ### 12. Set Up Local Node/Bin for the Gymnasticon Binary ###
 # The original service expects the binary at /opt/gymnasticon/node/bin/gymnasticon.
