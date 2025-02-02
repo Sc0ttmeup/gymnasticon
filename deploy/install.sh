@@ -1,4 +1,7 @@
 #!/bin/bash
+# File: install.sh
+# Folder: (root folder of your install script)
+# This script installs Gymnasticon on an RPiZero running Node.js 14.
 set -e
 
 echo "=== Starting Gymnasticon Installation ==="
@@ -8,6 +11,7 @@ NODE_VERSION="14.21.3"
 NODE_DISTRO="node-v${NODE_VERSION}-linux-armv6l"
 NODE_DOWNLOAD_URL="https://unofficial-builds.nodejs.org/download/release/v${NODE_VERSION}/${NODE_DISTRO}.tar.xz"
 INSTALL_DIR="/opt/gymnasticon"
+TMP_CLONE_DIR="/tmp/gymnasticon-clone"
 
 # Clean previous installations
 echo "Cleaning previous installations..."
@@ -43,12 +47,22 @@ sudo ln -sf /usr/local/bin/npm /usr/bin/npm
 echo "Verifying Node.js installation..."
 node -v
 npm -v
+
+# Clone Gymnasticon into a temporary directory
+echo "Cloning Gymnasticon repository into temporary directory..."
+rm -rf "$TMP_CLONE_DIR"
+git clone --depth 1 https://github.com/4o4R/gymnasticon.git "$TMP_CLONE_DIR"
+
 # Install Gymnasticon with proper permissions
 echo "Installing Gymnasticon..."
 sudo mkdir -p "$INSTALL_DIR"
-sudo chown -R pi:pi "$INSTALL_DIR"  # Set correct ownership
-cd "$INSTALL_DIR"
-git clone --depth 1 https://github.com/4o4R/gymnasticon.git .
+# Change ownership so that user 'pi' can write into the folder
+sudo chown -R pi:pi "$INSTALL_DIR"
+# Copy the cloned files into INSTALL_DIR
+cp -R "$TMP_CLONE_DIR"/* "$INSTALL_DIR"
+# Clean up temporary clone directory
+rm -rf "$TMP_CLONE_DIR"
+
 # NPM configuration for RPi Zero
 echo "Configuring npm for RPi Zero..."
 export npm_config_build_from_source=true
@@ -58,6 +72,7 @@ npm config set legacy-peer-deps true
 
 # Build process
 echo "Building Gymnasticon..."
+cd "$INSTALL_DIR"
 npm install
 npm run build
 
