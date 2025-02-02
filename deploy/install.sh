@@ -130,21 +130,7 @@ cleanup_swap
 if [ ! -f "$INSTALL_DIR/gymnasticon.json" ]; then
   echo "[CONFIG] Creating default configuration file..."
   cat <<EOF > "$INSTALL_DIR/gymnasticon.json"
-{
-  "server-name": "Gymnasticon",
-  "broadcast": {
-    "ant": {
-      "power": true,
-      "speedCadence": true
-    },
-    "bluetooth": {
-      "power": true,
-      "speedCadence": true
-    }
-  }
-}
-EOF
-fi
+
 
 ### 12. Set Up Local Node/Bin for the Gymnasticon Binary ###
 # The original service expects the binary at /opt/gymnasticon/node/bin/gymnasticon.
@@ -158,30 +144,7 @@ sudo chown -R pi:pi "$INSTALL_DIR"
 
 ### 13. Install the Original Systemd Service File ###
 echo "[SERVICE] Installing systemd service file..."
-sudo tee /etc/systemd/system/gymnasticon.service > /dev/null <<EOF
-[Unit]
-Description=Gymnasticon
-After=bluetooth.target
-Requires=bluetooth.target
-StartLimitIntervalSec=0
-
-[Service]
-Type=simple
-Environment=PATH=/usr/local/bin:/usr/bin:/bin:/opt/gymnasticon/node/bin
-WorkingDirectory=/opt/gymnasticon
-User=pi
-Group=pi
-ExecStart=$(which node) /opt/gymnasticon/node/bin/gymnasticon
-RestartSec=1
-Restart=always
-
-AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
-NoNewPrivileges=true
-
-[Install]
-WantedBy=multi-user.target
-EOF
-### 14. Reload systemd, Enable, and Start the Service ###
+sudo cp "${INSTALL_DIR}/deploy/gymnasticon.service" /etc/systemd/system/gymnasticon.service### 14. Reload systemd, Enable, and Start the Service ###
 echo "[SERVICE] Reloading systemd daemon and starting Gymnasticon service..."
 sudo systemctl daemon-reload
 sudo systemctl enable gymnasticon
