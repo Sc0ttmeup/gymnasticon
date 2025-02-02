@@ -2,12 +2,6 @@
 # File: install.sh
 # Folder: deploy
 # Description: Installs Gymnasticon with Node.js v14 on ARMv6 (RPi Zero).
-#              Downloads the official Node.js v14 binary tarball for ARMv6,
-#              installs it to /usr/local, creates symlinks for node and npm,
-#              and sets up the Gymnasticon service with the proper PATH.
-#
-# Note: This script uses Node.js v14.21.3. To change the version,
-#       update the NODE_VERSION variable accordingly.
 
 set -e
 
@@ -18,17 +12,25 @@ INSTALL_DIR="/opt/gymnasticon"
 LOG_FILE="/var/log/gymnasticon-install.log"
 NODE_VERSION="14.21.3"
 NODE_DISTRO="node-v${NODE_VERSION}-linux-armv6l"
+TEMP_DIR="/tmp/gymnasticon-install"
 
 ### Start Logging ###
-# Logging to LOG_FILE using sudo so we can write to /var/log
 exec > >(sudo tee -a "$LOG_FILE") 2>&1
 
-### Error Handling ###
+### Error and Cleanup Handling ###
 handle_error() {
     echo "ERROR: Something broke at line $1"
+    cleanup_temp
     exit 1
 }
+
+cleanup_temp() {
+    echo "[CLEANUP] Removing temporary files..."
+    rm -rf "${TEMP_DIR}"
+}
+
 trap 'handle_error $LINENO' ERR
+trap cleanup_temp EXIT
 
 ### Clean Up APT Locks ###
 cleanup_locks() {
@@ -69,38 +71,43 @@ sudo apt-get install -y \
   libusb-1.0-0-dev \
   build-essential \
   curl \
-  jq
+  jq \
+  xz-utils
 
 ### 4. Install and Configure Node.js (Version 14 for ARMv6) ###
 echo "[NODE] Installing Node.js v${NODE_VERSION} for ARMv6..."
-# Download the official Node.js binary tarball for ARMv6
-curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/${NODE_DISTRO}.tar.xz" -o "${NODE_DISTRO}.tar.xz"
 
-# Extract the tarball
+# Create and enter temp directory
+mkdir -p "${TEMP_DIR}"
+cd "${TEMP_DIR}"
+
+# Verify and download Node.js binary
+NODE_DOWNLOAD_URL="https://nodejs.org/dist/v${NODE_VERSION}/${NODE_DISTRO}.tar.xz"
+if ! curl --output /dev/null --silent --head --fail "$NODE_DOWNLOAD_URL"; then
+    echo "ERROR: Node.js binary not available at $NODE_DOWNLOAD_URL"
+    exit 1
+fi
+
+curl -fsSL "$NODE_DOWNLOAD_URL" -o "${NODE_DISTRO}.tar.xz"
 tar -xf "${NODE_DISTRO}.tar.xz"
-
-# Copy the extracted files to /usr/local (requires sudo)
 sudo cp -R "${NODE_DISTRO}"/* /usr/local/
 
-# Verify Node.js installation
+# Set up PATH and verify installation
+export PATH="/usr/local/bin:$PATH"
+hash -r
+
 NODE_VERSION_INSTALLED=$(node -v 2>/dev/null || true)
 if [ -z "$NODE_VERSION_INSTALLED" ]; then
     echo "ERROR: Node.js installation failed."
     exit 1
 fi
+
 echo "[NODE] Node.js version: $NODE_VERSION_INSTALLED"
 echo "[NODE] npm version: $(npm -v)"
 
-# Unconditionally create symlinks for node and npm in /usr/bin so that /usr/bin/env finds them.
-NODE_CMD=$(which node)
-NPM_CMD=$(which npm)
-echo "[NODE] Creating symlink: sudo ln -sf $NODE_CMD /usr/bin/node"
-sudo ln -sf "$NODE_CMD" /usr/bin/node
-echo "[NODE] Creating symlink: sudo ln -sf $NPM_CMD /usr/bin/npm"
-sudo ln -sf "$NPM_CMD" /usr/bin/npm
-
-echo "[NODE] Node.js path: $(which node)"
-echo "[NODE] npm path: $(which npm)"
+# Create system-wide symlinks
+sudo ln -sf /usr/local/bin/node /usr/bin/node
+sudo ln -sf /usr/local/bin/npm /usr/bin/npm
 
 ### 5. Clone the Gymnasticon Repository ###
 echo "[GIT] Creating installation directory and cloning repository..."
@@ -114,8 +121,8 @@ echo "[NPM] Setting up npm environment..."
 export npm_config_build_from_source=true
 export CFLAGS="-O1"
 export CXXFLAGS="-O1"
-export npm_config_jobs=2
-export NODE_OPTIONS="--max-old-space-size=256"
+export npm_config_jobs=1
+export NODE_OPTIONS="--max-old-space-size=128"
 npm config set unsafe-perm true
 npm config set legacy-peer-deps true
 
@@ -143,12 +150,12 @@ sudo ln -sf "$INSTALL_DIR/lib/app/cli.js" "$INSTALL_DIR/node/bin/gymnasticon"
 sudo chmod +x "$INSTALL_DIR/lib/app/cli.js"
 sudo chown -R pi:pi "$INSTALL_DIR"
 
-### 10. Install Systemd Service and Patch PATH ###
+### 10. Install Systemd Service and Configure ###
 echo "[SERVICE] Installing systemd service file..."
 sudo cp "${INSTALL_DIR}/deploy/gymnasticon.service" /etc/systemd/system/gymnasticon.service
 
-# Patch the service file so that the PATH includes /usr/local/bin (where node may reside)
-sudo sed -i '/\[Service\]/a Environment=PATH=/usr/local/bin:/usr/bin:/bin' /etc/systemd/system/gymnasticon.service
+# Configure service with proper PATH and resource limits
+sudo sed -i '/\[Service\]/a Environment=PATH=/usr/local/bin:/usr/bin:/bin\nMemoryLimit=150M\nCPUQuota=80%' /etc/systemd/system/gymnasticon.service
 
 echo "[SERVICE] Reloading systemd daemon and starting Gymnasticon service..."
 sudo systemctl daemon-reload
@@ -166,3 +173,4 @@ else
 fi
 
 echo "=== Gymnasticon installation complete! ==="
+
