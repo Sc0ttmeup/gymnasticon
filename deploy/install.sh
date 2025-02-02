@@ -2,8 +2,9 @@
 # File: install.sh
 # Folder: deploy
 # Description: Installs Gymnasticon by cloning the repository into /opt/gymnasticon,
-#              installing dependencies, building the code with Babel, setting up a local
-#              node/bin folder with a symlink to the Gymnasticon binary, and installing
+#              installing dependencies using npm ci if a lockfile is present, caching
+#              dependencies if already installed, building the code with Babel, setting up
+#              a local node/bin folder with a symlink to the Gymnasticon binary, and installing
 #              the systemd service (running as user pi).
 
 set -e
@@ -12,7 +13,6 @@ set -e
 REPO_URL="https://github.com/4o4R/gymnasticon.git"
 BRANCH="master"
 INSTALL_DIR="/opt/gymnasticon"
-SWAP_SIZE_MB=1024
 LOG_FILE="/var/log/gymnasticon-install.log"
 
 ### Start Logging ###
@@ -22,28 +22,9 @@ exec > >(sudo tee -a "$LOG_FILE") 2>&1
 ### Error Handling ###
 handle_error() {
     echo "ERROR: Something broke at line $1"
-    cleanup_swap
     exit 1
 }
 trap 'handle_error $LINENO' ERR
-
-### Swap Functions (helpful on a memory‐constrained RPi Zero) ###
-cleanup_swap() {
-    if [ -f /swapfile ]; then
-        echo "[SWAP] Removing old /swapfile..."
-        sudo swapoff /swapfile 2>/dev/null || true
-        sudo rm -f /swapfile
-    fi
-}
-
-setup_swap() {
-    echo "[SWAP] Creating a ${SWAP_SIZE_MB}MB swap file..."
-    cleanup_swap
-    sudo dd if=/dev/zero of=/swapfile bs=1M count=$SWAP_SIZE_MB
-    sudo chmod 600 /swapfile
-    sudo mkswap /swapfile
-    sudo swapon /swapfile
-}
 
 ### Clean Up APT Locks ###
 cleanup_locks() {
@@ -88,7 +69,7 @@ sudo apt-get install -y \
 
 ### 4. Verify Node.js is Installed ###
 if ! command -v node >/dev/null; then
-  # If node is not found, check if nodejs exists and create a symlink.
+  # If 'node' is not found, check if 'nodejs' exists and create a symlink.
   if command -v nodejs >/dev/null; then
     echo "[NODE] 'node' not found, but 'nodejs' is available. Creating symlink..."
     sudo ln -sf "$(which nodejs)" /usr/bin/node
@@ -107,41 +88,45 @@ sudo chown pi:pi "$INSTALL_DIR"
 cd "$INSTALL_DIR"
 git clone --depth 1 --branch "$BRANCH" "$REPO_URL" .
 
-### 6. Set Up Swap Space for the Build (RPi Zero may need extra memory) ###
-setup_swap
-
-### 7. Set Up npm Environment Variables ###
+### 6. Set Up npm Environment Variables ###
 echo "[NPM] Setting up npm environment..."
 export npm_config_build_from_source=true
 export CFLAGS="-O1"
 export CXXFLAGS="-O1"
-export npm_config_jobs=1
+# You can adjust the number of jobs based on available memory; 2 is used here.
+export npm_config_jobs=2
 export NODE_OPTIONS="--max-old-space-size=256"
 npm config set unsafe-perm true
 npm config set legacy-peer-deps true
 
-### 8. Install All Dependencies (including devDependencies) ###
-echo "[NPM] Installing all dependencies (including devDependencies)..."
-npm install
+### 7. Install Dependencies Using Cache and npm ci ###
+if [ ! -d "node_modules" ]; then
+    if [ -f package-lock.json ]; then
+        echo "[NPM] Installing dependencies using npm ci..."
+        npm ci
+    else
+        echo "[NPM] Installing dependencies using npm install..."
+        npm install
+    fi
+else
+    echo "[NPM] Dependencies already installed. Skipping installation."
+fi
 
-### 9. Build the Code Using Babel ###
+### 8. Build the Code Using Babel ###
 echo "[BUILD] Building (transpiling) the source code..."
 npm run build
 
-### 10. Remove Swap Space After the Build ###
-cleanup_swap
-
-### 11. Set Up Local Node/Bin for the Gymnasticon Binary ###
+### 9. Set Up Local Node/Bin for the Gymnasticon Binary ###
 # The original service expects the binary at /opt/gymnasticon/node/bin/gymnasticon.
 echo "[SETUP] Creating local node/bin directory and linking the binary..."
 sudo mkdir -p "$INSTALL_DIR/node/bin"
-# Instead of linking from node_modules/.bin, link directly to the built file.
+# Link directly to the built file.
 sudo ln -sf "$INSTALL_DIR/lib/app/cli.js" "$INSTALL_DIR/node/bin/gymnasticon"
 sudo chmod +x "$INSTALL_DIR/lib/app/cli.js"
 # Ensure proper ownership (user pi).
 sudo chown -R pi:pi "$INSTALL_DIR"
 
-### 12. Install the Original Systemd Service File ###
+### 10. Install the Original Systemd Service File ###
 echo "[SERVICE] Installing systemd service file..."
 sudo cp "${INSTALL_DIR}/deploy/gymnasticon.service" /etc/systemd/system/gymnasticon.service
 echo "[SERVICE] Reloading systemd daemon and starting Gymnasticon service..."
@@ -149,7 +134,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable gymnasticon
 sudo systemctl start gymnasticon
 
-### 13. Verify the Service Status ###
+### 11. Verify the Service Status ###
 sleep 5
 if systemctl is-active --quiet gymnasticon; then
     echo "[SERVICE] Gymnasticon service is active and running!"
