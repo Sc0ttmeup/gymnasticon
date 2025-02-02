@@ -1,7 +1,9 @@
 #!/bin/bash
 # File: install.sh
 # Folder: deploy
-# Description: Installs Gymnasticon with proper Node.js setup and dependency management
+# Description: Installs Gymnasticon with Node.js v14, proper dependency management, and patches the systemd service file.
+#              This version installs Node.js via NodeSource, creates symlinks for node and npm,
+#              and sets the PATH for the service.
 
 set -e
 
@@ -12,6 +14,7 @@ INSTALL_DIR="/opt/gymnasticon"
 LOG_FILE="/var/log/gymnasticon-install.log"
 
 ### Start Logging ###
+# Logging to LOG_FILE using sudo so we can write to /var/log
 exec > >(sudo tee -a "$LOG_FILE") 2>&1
 
 ### Error Handling ###
@@ -62,10 +65,10 @@ sudo apt-get install -y \
   curl \
   jq
 
-### 4. Install and Configure Node.js ###
-echo "[NODE] Setting up Node.js..."
-# Install Node.js from NodeSource repository
-curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -
+### 4. Install and Configure Node.js (Version 14) ###
+echo "[NODE] Setting up Node.js v14..."
+# Install Node.js v14 from NodeSource repository
+curl -fsSL https://deb.nodesource.com/setup_14.x | sudo -E bash -
 sudo apt-get install -y nodejs
 
 # Verify Node.js installation
@@ -81,32 +84,13 @@ fi
 echo "[NODE] Node.js version: $NODE_VERSION"
 echo "[NODE] npm version: $(npm -v)"
 
-# Ensure the 'node' command is available system-wide.
-if [ ! -x /usr/bin/node ]; then
-    if [ -x /usr/bin/nodejs ]; then
-        echo "[NODE] Creating symlink from /usr/bin/nodejs to /usr/bin/node..."
-        sudo ln -sf /usr/bin/nodejs /usr/bin/node
-    else
-        # Fallback: use the path from which 'node' was found.
-        NODE_CMD=$(which node || true)
-        if [ -n "$NODE_CMD" ]; then
-            echo "[NODE] Creating symlink from $NODE_CMD to /usr/bin/node..."
-            sudo ln -sf "$NODE_CMD" /usr/bin/node
-        else
-            echo "ERROR: Could not determine Node.js binary location."
-            exit 1
-        fi
-    fi
-fi
-
-# Optionally ensure 'npm' is in /usr/bin
-if [ ! -x /usr/bin/npm ]; then
-    NPM_CMD=$(which npm || true)
-    if [ -n "$NPM_CMD" ]; then
-        echo "[NODE] Creating symlink for npm..."
-        sudo ln -sf "$NPM_CMD" /usr/bin/npm
-    fi
-fi
+# Unconditionally create symlinks for node and npm in /usr/bin so that /usr/bin/env finds them.
+NODE_CMD=$(which node)
+NPM_CMD=$(which npm)
+echo "[NODE] Creating symlink: sudo ln -sf $NODE_CMD /usr/bin/node"
+sudo ln -sf "$NODE_CMD" /usr/bin/node
+echo "[NODE] Creating symlink: sudo ln -sf $NPM_CMD /usr/bin/npm"
+sudo ln -sf "$NPM_CMD" /usr/bin/npm
 
 echo "[NODE] Node.js path: $(which node)"
 echo "[NODE] npm path: $(which npm)"
@@ -152,9 +136,13 @@ sudo ln -sf "$INSTALL_DIR/lib/app/cli.js" "$INSTALL_DIR/node/bin/gymnasticon"
 sudo chmod +x "$INSTALL_DIR/lib/app/cli.js"
 sudo chown -R pi:pi "$INSTALL_DIR"
 
-### 10. Install Systemd Service ###
+### 10. Install Systemd Service and Patch PATH ###
 echo "[SERVICE] Installing systemd service file..."
 sudo cp "${INSTALL_DIR}/deploy/gymnasticon.service" /etc/systemd/system/gymnasticon.service
+
+# Patch the service file so that the PATH includes /usr/local/bin (where node may reside)
+sudo sed -i '/\[Service\]/a Environment=PATH=/usr/local/bin:/usr/bin:/bin' /etc/systemd/system/gymnasticon.service
+
 echo "[SERVICE] Reloading systemd daemon and starting Gymnasticon service..."
 sudo systemctl daemon-reload
 sudo systemctl enable gymnasticon
