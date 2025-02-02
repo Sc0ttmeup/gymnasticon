@@ -139,7 +139,7 @@ sudo chown -R pi:pi "$INSTALL_DIR"
 
 ### 13. Install the Original Systemd Service File ###
 echo "[SERVICE] Installing systemd service file..."
-sudo cp "${INSTALL_DIR}/deploy/gymnasticon.service" /etc/systemd/system/gymnasticon.service### 14. Reload systemd, Enable, and Start the Service ###
+sudo cp "${INSTALL_DIR}/deploy/gymnasticon.service" /etc/systemd/system/gymnasticon.service
 echo "[SERVICE] Reloading systemd daemon and starting Gymnasticon service..."
 sudo systemctl daemon-reload
 sudo systemctl enable gymnasticon
