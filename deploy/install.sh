@@ -51,7 +51,7 @@ rm -rf "$TMP_CLONE_DIR"
 # NPM configuration for RPi Zero
 echo "Configuring npm for RPi Zero..."
 export npm_config_build_from_source=true
-export NODE_OPTIONS="--max-old-space-size=256"
+export NODE_OPTIONS="--max-old-space-size=512"
 npm config set unsafe-perm true
 npm config set legacy-peer-deps true
 npm set audit false
@@ -59,7 +59,15 @@ npm set audit false
 # Install dependencies
 echo "Installing dependencies..."
 cd "$INSTALL_DIR"
-npm install
+npm install --save-dev @babel/core @babel/cli @babel/preset-env
+
+# Add Babel configuration
+echo "Adding Babel configuration..."
+cat > "$INSTALL_DIR/.babelrc" << 'EOF'
+{
+  "presets": ["@babel/preset-env"]
+}
+EOF
 
 # Build process
 echo "Building Gymnasticon..."
