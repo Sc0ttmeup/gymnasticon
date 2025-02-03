@@ -45,12 +45,12 @@ echo "Verifying Node.js installation..."
 node -v
 npm -v
 
-# Clone Gymnasticon into a temporary directory
-echo "Cloning Gymnasticon repository into temporary directory..."
+# Clone Gymnasticon
+echo "Cloning Gymnasticon repository..."
 rm -rf "$TMP_CLONE_DIR"
 git clone --depth 1 https://github.com/4o4R/gymnasticon.git "$TMP_CLONE_DIR"
 
-# Install Gymnasticon with proper permissions
+# Install Gymnasticon
 echo "Installing Gymnasticon..."
 sudo mkdir -p "$INSTALL_DIR"
 sudo chown -R pi:pi "$INSTALL_DIR"
@@ -70,16 +70,17 @@ cd "$INSTALL_DIR"
 npm install
 npm run build
 
-# Set up binary path and executable
+# Set up binary path and executable - FIXED SECTION
 echo "Setting up binary path..."
-sudo mkdir -p "$INSTALL_DIR/node/bin"
-sudo ln -sf "$INSTALL_DIR/lib/app/cli.js" "$INSTALL_DIR/node/bin/gymnasticon"
-sudo chmod +x "$INSTALL_DIR/lib/app/cli.js"
+sudo mkdir -p "$INSTALL_DIR/bin"
+sudo ln -sf "$INSTALL_DIR/lib/gymnasticon.js" "$INSTALL_DIR/bin/gymnasticon"
+sudo chmod +x "$INSTALL_DIR/lib/gymnasticon.js"
 sudo chown -R pi:pi "$INSTALL_DIR"
 
 # Service setup
 echo "Setting up systemd service..."
 sudo cp deploy/gymnasticon.service /etc/systemd/system/
+sudo sed -i "s|ExecStart=.*|ExecStart=/opt/gymnasticon/bin/gymnasticon|" /etc/systemd/system/gymnasticon.service
 sudo systemctl daemon-reload
 sudo systemctl enable gymnasticon
 sudo systemctl start gymnasticon
