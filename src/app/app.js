@@ -42,12 +42,53 @@ export const defaults = {
 
   // ANT+ server options
   antDeviceId: 11234, // random default ANT+ device id
+  antCscEnabled: true, // enable Speed/Cadence broadcasting
+  antCscChannel: 2, // separate channel for CSC
 
   // power adjustment (to compensate for inaccurate power measurements on bike)
   powerScale: 1.0, // multiply power by this
   powerOffset: 0.0, // add this to power
 };
 
+constructor(options = {}) {
+    const opts = {...defaults, ...options};
+    
+    this.power = 0;
+    this.crank = {revolutions: 0, timestamp: -Infinity};
+
+    process.env['NOBLE_HCI_DEVICE_ID'] = opts.bikeAdapter;
+    process.env['BLENO_HCI_DEVICE_ID'] = opts.serverAdapter;
+    if (opts.bikeAdapter === opts.serverAdapter) {
+      process.env['NOBLE_MULTI_ROLE'] = '1'
+    }
+
+    this.opts = opts;
+    this.logger = new Logger();
+    this.simulation = new Simulation();
+    this.server = new GymnasticonServer(bleno, opts.serverName);
+
+    this.antStick = createAntStick(opts);
+    this.antServer = new AntServer(this.antStick, {
+      deviceId: opts.antDeviceId,
+      cscEnabled: opts.antCscEnabled,
+      cscChannel: opts.antCscChannel
+    });
+    this.antStick.on('startup', this.onAntStickStartup.bind(this));
+
+    this.pingInterval = new Timer(opts.serverPingInterval);
+    this.statsTimeout = new Timer(opts.bikeStatsTimeout, {repeats: false});
+    this.connectTimeout = new Timer(opts.bikeConnectTimeout, {repeats: false});
+    this.powerScale = opts.powerScale;
+    this.powerOffset = opts.powerOffset;
+
+    this.pingInterval.on('timeout', this.onPingInterval.bind(this));
+    this.statsTimeout.on('timeout', this.onBikeStatsTimeout.bind(this));
+    this.connectTimeout.on('timeout', this.onBikeConnectTimeout.bind(this));
+    this.simulation.on('pedal', this.onPedalStroke.bind(this));
+
+    this.onSigInt = this.onSigInt.bind(this);
+    this.onExit = this.onExit.bind(this);
+}
 /**
  * Gymnasticon App.
  *
