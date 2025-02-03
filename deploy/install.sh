@@ -51,16 +51,19 @@ rm -rf "$TMP_CLONE_DIR"
 # NPM configuration for RPi Zero
 echo "Configuring npm for RPi Zero..."
 export npm_config_build_from_source=true
-export NODE_OPTIONS="--max-old-space-size=128"
+export NODE_OPTIONS="--max-old-space-size=256"
 npm config set unsafe-perm true
 npm config set legacy-peer-deps true
 npm set audit false
 
-# Build process
-echo "Building Gymnasticon..."
+# Install dependencies
+echo "Installing dependencies..."
 cd "$INSTALL_DIR"
 npm install
-npm run build
+
+# Build process
+echo "Building Gymnasticon..."
+npm run build || { echo "Build failed. Check logs for details."; exit 1; }
 
 # Create executable wrapper
 echo "Creating executable wrapper..."
@@ -78,7 +81,7 @@ sudo chown -R pi:pi "$INSTALL_DIR"
 
 # Service setup
 echo "Setting up systemd service..."
-sudo cp deploy/gymnasticon.service /etc/systemd/system/
+sudo cp "$INSTALL_DIR/deploy/gymnasticon.service" /etc/systemd/system/
 sudo sed -i "s|ExecStart=.*|ExecStart=/opt/gymnasticon/bin/gymnasticon|" /etc/systemd/system/gymnasticon.service
 sudo systemctl daemon-reload
 sudo systemctl enable gymnasticon
