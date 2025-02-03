@@ -1,7 +1,4 @@
 #!/bin/bash
-# File: install.sh
-# Folder: (root folder of your install script)
-# This script installs Gymnasticon on an RPiZero running Node.js 14.
 set -e
 
 echo "=== Starting Gymnasticon Installation ==="
@@ -56,11 +53,8 @@ git clone --depth 1 https://github.com/4o4R/gymnasticon.git "$TMP_CLONE_DIR"
 # Install Gymnasticon with proper permissions
 echo "Installing Gymnasticon..."
 sudo mkdir -p "$INSTALL_DIR"
-# Change ownership so that user 'pi' can write into the folder
 sudo chown -R pi:pi "$INSTALL_DIR"
-# Copy the cloned files into INSTALL_DIR
 cp -R "$TMP_CLONE_DIR"/* "$INSTALL_DIR"
-# Clean up temporary clone directory
 rm -rf "$TMP_CLONE_DIR"
 
 # NPM configuration for RPi Zero
@@ -75,6 +69,13 @@ echo "Building Gymnasticon..."
 cd "$INSTALL_DIR"
 npm install
 npm run build
+
+# Set up binary path and executable
+echo "Setting up binary path..."
+sudo mkdir -p "$INSTALL_DIR/node/bin"
+sudo ln -sf "$INSTALL_DIR/lib/app/cli.js" "$INSTALL_DIR/node/bin/gymnasticon"
+sudo chmod +x "$INSTALL_DIR/lib/app/cli.js"
+sudo chown -R pi:pi "$INSTALL_DIR"
 
 # Service setup
 echo "Setting up systemd service..."
