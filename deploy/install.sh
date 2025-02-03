@@ -20,16 +20,7 @@ sudo apt-get remove -y nodejs nodejs-doc || true
 # System updates and dependencies
 echo "Installing system dependencies..."
 sudo apt-get update
-sudo apt-get install -y \
-    git \
-    bluetooth \
-    bluez \
-    libbluetooth-dev \
-    libudev-dev \
-    libusb-1.0-0-dev \
-    build-essential \
-    curl \
-    xz-utils
+sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential curl xz-utils
 
 # Node.js installation
 echo "Installing Node.js ${NODE_VERSION}..."
@@ -63,6 +54,7 @@ export npm_config_build_from_source=true
 export NODE_OPTIONS="--max-old-space-size=128"
 npm config set unsafe-perm true
 npm config set legacy-peer-deps true
+npm set audit false
 
 # Build process
 echo "Building Gymnasticon..."
@@ -70,7 +62,14 @@ cd "$INSTALL_DIR"
 npm install
 npm run build
 
-# Set up binary path and executable - FIXED SECTION
+# Create executable wrapper
+echo "Creating executable wrapper..."
+cat > "$INSTALL_DIR/lib/gymnasticon.js" << 'EOF'
+#!/usr/bin/env node
+require('./index.js');
+EOF
+
+# Set up binary path and executable
 echo "Setting up binary path..."
 sudo mkdir -p "$INSTALL_DIR/bin"
 sudo ln -sf "$INSTALL_DIR/lib/gymnasticon.js" "$INSTALL_DIR/bin/gymnasticon"
