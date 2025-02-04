@@ -1,7 +1,7 @@
 #!/bin/bash
-
-# File: install.sh
+# File: C:\gymnasticon\deploy\install.sh
 # Description: Installation script for Gymnasticon on an RPiZero with Node 14
+# This version fixes the executable wrapper to load the correct file from lib/
 
 set -e
 
@@ -67,7 +67,6 @@ npm config set audit false
 echo "Installing dependencies..."
 npm install
 
-# Build process
 echo "Building Gymnasticon..."
 npm run build
 
@@ -76,7 +75,7 @@ echo "Creating executable wrapper..."
 mkdir -p "$INSTALL_DIR/node/bin"
 cat > "$INSTALL_DIR/node/bin/gymnasticon" << 'EOF'
 #!/usr/bin/node
-require('../../dist/index.js');
+require('../../lib/app/cli.js');
 EOF
 
 # Make the wrapper executable
