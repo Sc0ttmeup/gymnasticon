@@ -1,6 +1,6 @@
 #!/bin/bash
+
 # File: install.sh
-# Folder: (root of your repository)
 # Description: Installation script for Gymnasticon on an RPiZero with Node 14
 
 set -e
@@ -63,40 +63,29 @@ npm config set unsafe-perm true
 npm config set legacy-peer-deps true
 npm config set audit false
 
-# Install specific Babel dependencies for compatibility with Node 14
-echo "Installing babel dependencies..."
-npm install --save-dev @babel/core@7.12.0 @babel/cli@7.12.0 @babel/preset-env@7.12.0
+# Install dependencies and build
+echo "Installing dependencies..."
+npm install
 
-# Add Babel configuration file (.babelrc)
-echo "Adding Babel configuration..."
-cat > "$INSTALL_DIR/.babelrc" << 'EOF'
-{
-  "presets": ["@babel/preset-env"]
-}
-EOF
-
-# Build process using Babel
+# Build process
 echo "Building Gymnasticon..."
-npm run build || { echo "Build failed. Check logs for details."; exit 1; }
+npm run build
 
-# Create executable wrapper for Gymnasticon with an absolute node path
+# Create executable wrapper for Gymnasticon with correct path
 echo "Creating executable wrapper..."
-cat > "$INSTALL_DIR/lib/gymnasticon.js" << 'EOF'
+cat > "$INSTALL_DIR/bin/gymnasticon" << 'EOF'
 #!/usr/bin/node
-require('./index.js');
+require('../dist/index.js');
 EOF
 
-# Set up binary path and make the wrapper executable
-echo "Setting up binary path..."
-sudo mkdir -p "$INSTALL_DIR/bin"
-sudo ln -sf "$INSTALL_DIR/lib/gymnasticon.js" "$INSTALL_DIR/bin/gymnasticon"
-sudo chmod +x "$INSTALL_DIR/lib/gymnasticon.js"
+# Make the wrapper executable
+echo "Setting up permissions..."
+sudo chmod +x "$INSTALL_DIR/bin/gymnasticon"
 sudo chown -R pi:pi "$INSTALL_DIR"
 
-# Service setup (ensure that deploy/gymnasticon.service exists in your repo)
+# Service setup
 echo "Setting up systemd service..."
 sudo cp "$INSTALL_DIR/deploy/gymnasticon.service" /etc/systemd/system/
-sudo sed -i "s|ExecStart=.*|ExecStart=/opt/gymnasticon/bin/gymnasticon|" /etc/systemd/system/gymnasticon.service
 sudo systemctl daemon-reload
 sudo systemctl enable gymnasticon
 sudo systemctl start gymnasticon
