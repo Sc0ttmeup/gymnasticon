@@ -71,8 +71,9 @@ npm install
 echo "Building Gymnasticon..."
 npm run build
 
-# Create executable wrapper for Gymnasticon with correct path
+# Create executable wrapper
 echo "Creating executable wrapper..."
+mkdir -p "$INSTALL_DIR/bin"
 cat > "$INSTALL_DIR/bin/gymnasticon" << 'EOF'
 #!/usr/bin/node
 require('../dist/index.js');
