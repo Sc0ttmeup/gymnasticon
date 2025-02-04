@@ -1,8 +1,11 @@
 {
-  "presets": [["@babel/preset-env",
-    {
-      "targets": {"node": 10},
-      "include": ["transform-parameters"]
-    }
-  ]]
+  "presets": [
+    [
+      "@babel/preset-env",
+      {
+        "targets": { "node": "14" },
+        "modules": "commonjs"
+      }
+    ]
+  ]
 }
