@@ -73,15 +73,15 @@ npm run build
 
 # Create executable wrapper
 echo "Creating executable wrapper..."
-mkdir -p "$INSTALL_DIR/bin"
-cat > "$INSTALL_DIR/bin/gymnasticon" << 'EOF'
+mkdir -p "$INSTALL_DIR/node/bin"
+cat > "$INSTALL_DIR/node/bin/gymnasticon" << 'EOF'
 #!/usr/bin/node
-require('../dist/index.js');
+require('../../dist/index.js');
 EOF
 
 # Make the wrapper executable
 echo "Setting up permissions..."
-sudo chmod +x "$INSTALL_DIR/bin/gymnasticon"
+sudo chmod +x "$INSTALL_DIR/node/bin/gymnasticon"
 sudo chown -R pi:pi "$INSTALL_DIR"
 
 # Service setup
