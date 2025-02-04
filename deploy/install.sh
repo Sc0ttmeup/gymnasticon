@@ -79,10 +79,10 @@ EOF
 echo "Building Gymnasticon..."
 npm run build || { echo "Build failed. Check logs for details."; exit 1; }
 
-# Create executable wrapper for Gymnasticon
+# Create executable wrapper for Gymnasticon with an absolute node path
 echo "Creating executable wrapper..."
 cat > "$INSTALL_DIR/lib/gymnasticon.js" << 'EOF'
-#!/usr/bin/env node
+#!/usr/bin/node
 require('./index.js');
 EOF
 
