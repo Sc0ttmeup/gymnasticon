@@ -1,4 +1,8 @@
 #!/bin/bash
+# File: install.sh
+# Folder: (root of your repository)
+# Description: Installation script for Gymnasticon on an RPiZero with Node 14
+
 set -e
 
 echo "=== Starting Gymnasticon Installation ==="
@@ -9,6 +13,10 @@ NODE_DISTRO="node-v${NODE_VERSION}-linux-armv6l"
 NODE_DOWNLOAD_URL="https://unofficial-builds.nodejs.org/download/release/v${NODE_VERSION}/${NODE_DISTRO}.tar.xz"
 INSTALL_DIR="/opt/gymnasticon"
 TMP_CLONE_DIR="/tmp/gymnasticon-clone"
+
+# Environment setup for low-memory devices and building from source
+export NODE_OPTIONS="--max-old-space-size=512"
+export npm_config_build_from_source=true
 
 # Clean previous installations
 echo "Cleaning previous installations..."
@@ -22,7 +30,7 @@ echo "Installing system dependencies..."
 sudo apt-get update
 sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential curl xz-utils
 
-# Node.js installation
+# Node.js installation for ARMv6 (RPiZero)
 echo "Installing Node.js ${NODE_VERSION}..."
 cd /tmp
 curl -fsSL "$NODE_DOWNLOAD_URL" -o "${NODE_DISTRO}.tar.xz"
@@ -36,7 +44,7 @@ echo "Verifying Node.js installation..."
 node -v
 npm -v
 
-# Clone Gymnasticon
+# Clone Gymnasticon repository
 echo "Cloning Gymnasticon repository..."
 rm -rf "$TMP_CLONE_DIR"
 git clone --depth 1 https://github.com/4o4R/gymnasticon.git "$TMP_CLONE_DIR"
@@ -48,20 +56,18 @@ sudo chown -R pi:pi "$INSTALL_DIR"
 cp -R "$TMP_CLONE_DIR"/* "$INSTALL_DIR"
 rm -rf "$TMP_CLONE_DIR"
 
-# NPM configuration for RPi Zero
-echo "Configuring npm for RPi Zero..."
-export npm_config_build_from_source=true
-export NODE_OPTIONS="--max-old-space-size=512"
+# NPM configuration
+echo "Configuring npm..."
+cd "$INSTALL_DIR"
 npm config set unsafe-perm true
 npm config set legacy-peer-deps true
-npm set audit false
+npm config set audit false
 
-# Install dependencies
-echo "Installing dependencies..."
-cd "$INSTALL_DIR"
-npm install --save-dev @babel/core @babel/cli @babel/preset-env
+# Install specific Babel dependencies for compatibility with Node 14
+echo "Installing babel dependencies..."
+npm install --save-dev @babel/core@7.12.0 @babel/cli@7.12.0 @babel/preset-env@7.12.0
 
-# Add Babel configuration
+# Add Babel configuration file (.babelrc)
 echo "Adding Babel configuration..."
 cat > "$INSTALL_DIR/.babelrc" << 'EOF'
 {
@@ -69,25 +75,25 @@ cat > "$INSTALL_DIR/.babelrc" << 'EOF'
 }
 EOF
 
-# Build process
+# Build process using Babel
 echo "Building Gymnasticon..."
 npm run build || { echo "Build failed. Check logs for details."; exit 1; }
 
-# Create executable wrapper
+# Create executable wrapper for Gymnasticon
 echo "Creating executable wrapper..."
 cat > "$INSTALL_DIR/lib/gymnasticon.js" << 'EOF'
 #!/usr/bin/env node
 require('./index.js');
 EOF
 
-# Set up binary path and executable
+# Set up binary path and make the wrapper executable
 echo "Setting up binary path..."
 sudo mkdir -p "$INSTALL_DIR/bin"
 sudo ln -sf "$INSTALL_DIR/lib/gymnasticon.js" "$INSTALL_DIR/bin/gymnasticon"
 sudo chmod +x "$INSTALL_DIR/lib/gymnasticon.js"
 sudo chown -R pi:pi "$INSTALL_DIR"
 
-# Service setup
+# Service setup (ensure that deploy/gymnasticon.service exists in your repo)
 echo "Setting up systemd service..."
 sudo cp "$INSTALL_DIR/deploy/gymnasticon.service" /etc/systemd/system/
 sudo sed -i "s|ExecStart=.*|ExecStart=/opt/gymnasticon/bin/gymnasticon|" /etc/systemd/system/gymnasticon.service
@@ -95,7 +101,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable gymnasticon
 sudo systemctl start gymnasticon
 
-# Final verification
+# Final verification of service status
 echo "Verifying service status..."
 sudo systemctl status gymnasticon --no-pager
 
