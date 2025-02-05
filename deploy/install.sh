@@ -1,8 +1,8 @@
 #!/bin/bash
 # File: C:\gymnasticon\deploy\install.sh
 # Description: Installation script for Gymnasticon on an RPiZero with Node 14.
-# This version forces Babel to transpile ES module syntax to CommonJS using inline configuration,
-# embedding the target option in the preset string to avoid the unsupported --targets flag.
+# This version creates a temporary Babel configuration file so that ES module syntax
+# is transpiled to CommonJS. The resulting files in lib/ use require() instead of import.
 
 set -e
 
@@ -68,13 +68,28 @@ npm config set audit false
 echo "Installing dependencies..."
 npm install
 
-# Build process using inline Babel configuration to force CommonJS transformation.
-# The preset option is provided inline with URL-encoded target settings.
-echo "Building Gymnasticon with inline Babel config..."
-npx babel src --no-babelrc \
-  --presets="@babel/preset-env?targets=%7B%22node%22:%2214%22%7D" \
-  --plugins=@babel/plugin-transform-modules-commonjs \
-  --delete-dir-on-start -d lib
+# Create a temporary Babel configuration file to force CommonJS module output
+echo "Creating temporary Babel configuration file..."
+cat > temp.babel.config.json << 'EOF'
+{
+  "presets": [
+    [
+      "@babel/preset-env",
+      {
+        "targets": { "node": "14" },
+        "modules": "commonjs"
+      }
+    ]
+  ]
+}
+EOF
+
+# Build process using the temporary Babel configuration file
+echo "Building Gymnasticon with temporary Babel config..."
+npx babel src --config-file temp.babel.config.json --delete-dir-on-start -d lib
+
+# Remove the temporary Babel configuration file
+rm temp.babel.config.json
 
 # Create executable wrapper
 echo "Creating executable wrapper..."
