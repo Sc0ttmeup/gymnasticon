@@ -2,7 +2,7 @@
 # File: C:\gymnasticon\deploy\install.sh
 # Description: Installation script for Gymnasticon on an RPiZero with Node 14.
 # This version forces Babel to transpile ES module syntax to CommonJS using inline configuration,
-# so that the built code in lib/ uses require() instead of import statements.
+# embedding the target option in the preset string to avoid the unsupported --targets flag.
 
 set -e
 
@@ -69,9 +69,12 @@ echo "Installing dependencies..."
 npm install
 
 # Build process using inline Babel configuration to force CommonJS transformation.
-# This bypasses any .babelrc that might be causing ES module output.
+# The preset option is provided inline with URL-encoded target settings.
 echo "Building Gymnasticon with inline Babel config..."
-npx babel src --no-babelrc --presets=@babel/preset-env --plugins=@babel/plugin-transform-modules-commonjs --targets="node 14" --delete-dir-on-start -d lib
+npx babel src --no-babelrc \
+  --presets="@babel/preset-env?targets=%7B%22node%22:%2214%22%7D" \
+  --plugins=@babel/plugin-transform-modules-commonjs \
+  --delete-dir-on-start -d lib
 
 # Create executable wrapper
 echo "Creating executable wrapper..."
