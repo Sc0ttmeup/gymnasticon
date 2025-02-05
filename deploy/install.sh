@@ -1,20 +1,21 @@
 #!/bin/bash
 # File: C:\gymnasticon\deploy\install.sh
-# Description: Installation script for Gymnasticon on an RPiZero with Node 14
-# This version fixes the executable wrapper to load the correct file from lib/
+# Description: Installation script for Gymnasticon on an RPiZero with Node 14.
+# This version forces Babel to transpile ES module syntax to CommonJS using inline configuration,
+# so that the built code in lib/ uses require() instead of import statements.
 
 set -e
 
 echo "=== Starting Gymnasticon Installation ==="
 
-# Configuration
+# Configuration variables
 NODE_VERSION="14.21.3"
 NODE_DISTRO="node-v${NODE_VERSION}-linux-armv6l"
 NODE_DOWNLOAD_URL="https://unofficial-builds.nodejs.org/download/release/v${NODE_VERSION}/${NODE_DISTRO}.tar.xz"
 INSTALL_DIR="/opt/gymnasticon"
 TMP_CLONE_DIR="/tmp/gymnasticon-clone"
 
-# Environment setup for low-memory devices and building from source
+# Environment options for low-memory devices
 export NODE_OPTIONS="--max-old-space-size=512"
 export npm_config_build_from_source=true
 
@@ -25,7 +26,7 @@ sudo systemctl disable gymnasticon 2>/dev/null || true
 sudo rm -rf "$INSTALL_DIR"
 sudo apt-get remove -y nodejs nodejs-doc || true
 
-# System updates and dependencies
+# Install system dependencies
 echo "Installing system dependencies..."
 sudo apt-get update
 sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential curl xz-utils
@@ -63,12 +64,14 @@ npm config set unsafe-perm true
 npm config set legacy-peer-deps true
 npm config set audit false
 
-# Install dependencies and build
+# Install dependencies (including devDependencies)
 echo "Installing dependencies..."
 npm install
 
-echo "Building Gymnasticon..."
-npm run build
+# Build process using inline Babel configuration to force CommonJS transformation.
+# This bypasses any .babelrc that might be causing ES module output.
+echo "Building Gymnasticon with inline Babel config..."
+npx babel src --no-babelrc --presets=@babel/preset-env --plugins=@babel/plugin-transform-modules-commonjs --targets="node 14" --delete-dir-on-start -d lib
 
 # Create executable wrapper
 echo "Creating executable wrapper..."
@@ -78,7 +81,7 @@ cat > "$INSTALL_DIR/node/bin/gymnasticon" << 'EOF'
 require('../../lib/app/cli.js');
 EOF
 
-# Make the wrapper executable
+# Set wrapper permissions and ownership
 echo "Setting up permissions..."
 sudo chmod +x "$INSTALL_DIR/node/bin/gymnasticon"
 sudo chown -R pi:pi "$INSTALL_DIR"
