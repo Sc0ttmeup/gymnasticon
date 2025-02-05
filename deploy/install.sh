@@ -114,7 +114,7 @@ sudo cp "$INSTALL_DIR/deploy/gymnasticon.service" /etc/systemd/system/
 
 # (Optional) Patch the service ExecStart to use bot mode.
 # Remove or comment out the following line if you wish to run with a real bike.
-sudo sed -i 's|ExecStart=/opt/gymnasticon/node/bin/gymnasticon|ExecStart=/opt/gymnasticon/node/bin/gymnasticon --bike bot|g' /etc/systemd/system/gymnasticon.service
+# sudo sed -i 's|ExecStart=/opt/gymnasticon/node/bin/gymnasticon|ExecStart=/opt/gymnasticon/node/bin/gymnasticon --bike bot|g' /etc/systemd/system/gymnasticon.service
 
 sudo systemctl daemon-reload
 sudo systemctl enable gymnasticon
