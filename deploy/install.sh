@@ -60,6 +60,7 @@ cd "$INSTALL_DIR"
 npm config set unsafe-perm true
 npm config set legacy-peer-deps true
 npm config set audit false
+npm config set type commonjs
 
 # Install dependencies and build
 echo "Installing dependencies..."
@@ -72,12 +73,12 @@ npm run build
 echo "Verifying build..."
 test -f "$INSTALL_DIR/lib/app/cli.js" || (echo "Build failed - cli.js not found" && exit 1)
 
-# Create executable wrapper with absolute paths
+# Create executable wrapper with CommonJS support
 echo "Creating executable wrapper..."
 mkdir -p "$INSTALL_DIR/node/bin"
 cat > "$INSTALL_DIR/node/bin/gymnasticon" << EOF
 #!/bin/bash
-exec /usr/local/bin/node "$INSTALL_DIR/lib/app/cli.js" "\$@"
+NODE_PATH="$INSTALL_DIR/lib" exec /usr/local/bin/node "$INSTALL_DIR/lib/app/cli.js" "\$@"
 EOF
 
 # Make the wrapper executable and set permissions
