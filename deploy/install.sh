@@ -1,6 +1,5 @@
 #!/bin/bash
-# File: C:\gymnasticon\deploy\install.sh
-# Description: Installation script for Gymnasticon on an RPiZero with Node 14
+# Installation script for Gymnasticon on RPiZero with Node 14
 
 set -e
 
@@ -69,18 +68,23 @@ npm install
 echo "Building Gymnasticon..."
 npm run build
 
-# Create executable wrapper
+# Create executable wrapper with absolute Node.js path
 echo "Creating executable wrapper..."
 mkdir -p "$INSTALL_DIR/node/bin"
 cat > "$INSTALL_DIR/node/bin/gymnasticon" << 'EOF'
-#!/usr/bin/env node
-require('../../lib/app/cli.js');
+#!/bin/bash
+/usr/local/bin/node "$(dirname "$0")/../../lib/app/cli.js"
 EOF
 
-# Make the wrapper executable
+# Make the wrapper executable and set permissions
 echo "Setting up permissions..."
 chmod +x "$INSTALL_DIR/node/bin/gymnasticon"
 sudo chown -R pi:pi "$INSTALL_DIR"
+
+# Ensure system paths are properly configured
+echo "Configuring system paths..."
+sudo ln -sf /usr/local/bin/node /usr/bin/node
+sudo ln -sf /usr/local/bin/npm /usr/bin/npm
 
 # Service setup
 echo "Setting up systemd service..."
