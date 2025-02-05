@@ -1,8 +1,12 @@
 #!/bin/bash
 # File: C:\gymnasticon\deploy\install.sh
 # Description: Installation script for Gymnasticon on an RPiZero with Node 14.
-# This version creates a temporary Babel configuration file in the installation
-# directory so that ES module syntax is transpiled to CommonJS. The resulting files in lib/ use require().
+# This version creates a temporary Babel configuration file so that ES module syntax is
+# transpiled to CommonJS (using require()) and then patches the systemd service to run
+# Gymnasticon in bot (simulation) mode.
+#
+# If you have a real bike/Bluetooth adapter and do not want bot mode,
+# simply remove or comment out the sed command near the end.
 
 set -e
 
@@ -68,9 +72,9 @@ npm config set audit false
 echo "Installing dependencies..."
 npm install
 
-# Create a temporary Babel configuration file (in $INSTALL_DIR)
+# Create a temporary Babel configuration file (placed in $INSTALL_DIR)
 echo "Creating temporary Babel configuration file..."
-cat > temp.babel.config.json << 'EOF'
+cat > "$INSTALL_DIR/temp.babel.config.json" << 'EOF'
 {
   "presets": [
     [
@@ -85,12 +89,11 @@ cat > temp.babel.config.json << 'EOF'
 EOF
 
 # Build process using the temporary Babel configuration file.
-# Note: We pass the absolute path to the config file.
 echo "Building Gymnasticon with temporary Babel config..."
 npx babel src --config-file "$INSTALL_DIR/temp.babel.config.json" --delete-dir-on-start -d lib
 
 # Remove the temporary Babel configuration file
-rm temp.babel.config.json
+rm "$INSTALL_DIR/temp.babel.config.json"
 
 # Create executable wrapper
 echo "Creating executable wrapper..."
@@ -108,6 +111,11 @@ sudo chown -R pi:pi "$INSTALL_DIR"
 # Service setup
 echo "Setting up systemd service..."
 sudo cp "$INSTALL_DIR/deploy/gymnasticon.service" /etc/systemd/system/
+
+# (Optional) Patch the service ExecStart to use bot mode.
+# Remove or comment out the following line if you wish to run with a real bike.
+sudo sed -i 's|ExecStart=/opt/gymnasticon/node/bin/gymnasticon|ExecStart=/opt/gymnasticon/node/bin/gymnasticon --bike bot|g' /etc/systemd/system/gymnasticon.service
+
 sudo systemctl daemon-reload
 sudo systemctl enable gymnasticon
 sudo systemctl start gymnasticon
