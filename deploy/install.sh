@@ -62,23 +62,28 @@ npm config set legacy-peer-deps true
 npm config set audit false
 npm config set type commonjs
 
-# Install dependencies and build
+# Install dependencies
 echo "Installing dependencies..."
 npm install
 
-echo "Building Gymnasticon..."
-npm run build
+# Ensure Babel is installed
+echo "Installing Babel for transpilation..."
+npm install --global @babel/cli @babel/core @babel/preset-env
+
+# Transpile ES modules to CommonJS
+echo "Transpiling Gymnasticon with Babel..."
+npx babel lib --out-dir dist --extensions ".js"
 
 # Verify build artifacts
 echo "Verifying build..."
-test -f "$INSTALL_DIR/lib/app/cli.js" || (echo "Build failed - cli.js not found" && exit 1)
+test -f "$INSTALL_DIR/dist/app/cli.js" || (echo "Build failed - cli.js not found" && exit 1)
 
 # Create executable wrapper with CommonJS support
 echo "Creating executable wrapper..."
 mkdir -p "$INSTALL_DIR/node/bin"
 cat > "$INSTALL_DIR/node/bin/gymnasticon" << EOF
 #!/bin/bash
-NODE_PATH="$INSTALL_DIR/lib" exec /usr/local/bin/node "$INSTALL_DIR/lib/app/cli.js" "\$@"
+NODE_PATH="$INSTALL_DIR/dist" exec /usr/local/bin/node "$INSTALL_DIR/dist/app/cli.js" "\$@"
 EOF
 
 # Make the wrapper executable and set permissions
@@ -86,16 +91,38 @@ echo "Setting up permissions..."
 chmod +x "$INSTALL_DIR/node/bin/gymnasticon"
 sudo chown -R pi:pi "$INSTALL_DIR"
 
-# Configure bluetooth permissions
-echo "Configuring bluetooth..."
+# Configure Bluetooth permissions
+echo "Configuring Bluetooth..."
 sudo setcap cap_net_raw+eip $(eval readlink -f `which node`)
 
 # Service setup
 echo "Setting up systemd service..."
-sudo cp "$INSTALL_DIR/deploy/gymnasticon.service" /etc/systemd/system/
+cat <<EOF | sudo tee /etc/systemd/system/gymnasticon.service
+[Unit]
+Description=Gymnasticon
+After=network.target bluetooth.service
+
+[Service]
+ExecStart=/usr/bin/node /opt/gymnasticon/dist/app/cli.js
+WorkingDirectory=/opt/gymnasticon
+Restart=always
+User=pi
+Group=pi
+Environment=NODE_ENV=production
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=gymnasticon
+ExecStartPre=/bin/sleep 5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Enable and start the service
+echo "Reloading systemd..."
 sudo systemctl daemon-reload
 sudo systemctl enable gymnasticon
-sudo systemctl start gymnasticon
+sudo systemctl restart gymnasticon
 
 # Final verification of service status
 echo "Verifying service status..."

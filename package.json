@@ -3,7 +3,7 @@
   "version": "1.4.1",
   "description": "Enables the Flywheel Home Bike to work with Zwift and other training apps.",
   "engines": {
-    "node": ">=12.16.1"
+    "node": ">=14.0.0"
   },
   "bin": {
     "gymnasticon": "./lib/app/cli.js"
