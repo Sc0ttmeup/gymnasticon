@@ -12,7 +12,7 @@ NODE_DOWNLOAD_URL="https://unofficial-builds.nodejs.org/download/release/v${NODE
 INSTALL_DIR="/opt/gymnasticon"
 TMP_CLONE_DIR="/tmp/gymnasticon-clone"
 
-# Environment setup for low-memory devices and building from source
+# Environment setup for low-memory devices
 export NODE_OPTIONS="--max-old-space-size=512"
 export npm_config_build_from_source=true
 
@@ -26,7 +26,7 @@ sudo apt-get remove -y nodejs nodejs-doc || true
 # System updates and dependencies
 echo "Installing system dependencies..."
 sudo apt-get update
-sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential curl xz-utils coreutils
+sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential curl xz-utils
 
 # Node.js installation for ARMv6 (RPiZero)
 echo "Installing Node.js ${NODE_VERSION}..."
@@ -36,11 +36,6 @@ tar -xf "${NODE_DISTRO}.tar.xz"
 sudo cp -R "${NODE_DISTRO}"/* /usr/local/
 sudo ln -sf /usr/local/bin/node /usr/bin/node
 sudo ln -sf /usr/local/bin/npm /usr/bin/npm
-
-# Verify Node.js installation
-echo "Verifying Node.js installation..."
-node -v
-npm -v
 
 # Clone Gymnasticon repository
 echo "Cloning Gymnasticon repository..."
@@ -54,34 +49,22 @@ sudo chown -R pi:pi "$INSTALL_DIR"
 cp -R "$TMP_CLONE_DIR"/* "$INSTALL_DIR"
 rm -rf "$TMP_CLONE_DIR"
 
-# NPM configuration
-echo "Configuring npm..."
+# NPM configuration and installation
+echo "Setting up npm and installing dependencies..."
 cd "$INSTALL_DIR"
 npm config set unsafe-perm true
 npm config set legacy-peer-deps true
 npm config set audit false
-
-# Install dependencies
-echo "Installing dependencies..."
 npm install
 
-# Ensure Babel is installed
-echo "Installing Babel for transpilation..."
-npm install --global @babel/cli @babel/core @babel/preset-env
+# Create dist directory and build
+echo "Building Gymnasticon..."
+mkdir -p dist
+./node_modules/.bin/babel src --out-dir dist --copy-files
 
-# **Build Gymnasticon from `src/` (instead of `lib/`)**
-echo "Checking for source files..."
-if [ -d "$INSTALL_DIR/src" ]; then
-    echo "Building project from 'src/'..."
-    npm run build
-else
-    echo "ERROR: No source code found. Check repository structure."
-    exit 1
-fi
-
-# Verify build artifacts (expecting `dist/`)
-if [ ! -f "$INSTALL_DIR/dist/app/cli.js" ]; then
-    echo "ERROR: Build failed - 'cli.js' not found in dist/"
+# Verify build
+if [ ! -d "$INSTALL_DIR/dist" ]; then
+    echo "ERROR: Build failed - 'dist' directory not found"
     exit 1
 fi
 
@@ -93,16 +76,16 @@ cat > "$INSTALL_DIR/node/bin/gymnasticon" << EOF
 NODE_PATH="$INSTALL_DIR/dist" exec /usr/local/bin/node "$INSTALL_DIR/dist/app/cli.js" "\$@"
 EOF
 
-# Make the wrapper executable and set permissions
+# Set permissions
 echo "Setting up permissions..."
 chmod +x "$INSTALL_DIR/node/bin/gymnasticon"
 sudo chown -R pi:pi "$INSTALL_DIR"
 
-# Configure Bluetooth permissions
+# Configure Bluetooth
 echo "Configuring Bluetooth..."
 sudo setcap cap_net_raw+eip $(eval readlink -f `which node`)
 
-# Service setup
+# Setup systemd service
 echo "Setting up systemd service..."
 cat <<EOF | sudo tee /etc/systemd/system/gymnasticon.service
 [Unit]
@@ -125,16 +108,12 @@ ExecStartPre=/bin/sleep 5
 WantedBy=multi-user.target
 EOF
 
-# Enable and start the service
-echo "Reloading systemd..."
+# Enable and start service
+echo "Starting Gymnasticon service..."
 sudo systemctl daemon-reload
 sudo systemctl enable gymnasticon
 sudo systemctl restart gymnasticon
 
-# Final verification of service status
-echo "Verifying service status..."
-sleep 2
-sudo systemctl status gymnasticon --no-pager
-
 echo "=== Gymnasticon Installation Complete ==="
-echo "You can check the service status with: sudo systemctl status gymnasticon"
+echo "Service status:"
+sudo systemctl status gymnasticon --no-pager
