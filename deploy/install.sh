@@ -22,21 +22,40 @@ echo "Cleaning previous installations..."
 sudo systemctl stop gymnasticon 2>/dev/null || true
 sudo systemctl disable gymnasticon 2>/dev/null || true
 sudo rm -rf "$INSTALL_DIR"
-sudo apt-get remove -y nodejs nodejs-doc || true
 
-# System updates and dependencies
-echo "Installing system dependencies..."
-sudo apt-get update
-sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential curl xz-utils coreutils
+# Check and install system dependencies if needed
+if dpkg -l | grep -q "bluetooth\|bluez\|libbluetooth-dev\|libudev-dev"; then
+    echo "System dependencies already installed, skipping..."
+else
+    echo "Installing system dependencies..."
+    sudo apt-get update
+    sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential curl xz-utils coreutils
+fi
 
-# Node.js installation for ARMv6 (RPiZero)
-echo "Installing Node.js ${NODE_VERSION}..."
-cd /tmp
-curl -fsSL "$NODE_DOWNLOAD_URL" -o "${NODE_DISTRO}.tar.xz"
-tar -xf "${NODE_DISTRO}.tar.xz"
-sudo cp -R "${NODE_DISTRO}"/* /usr/local/
-sudo ln -sf /usr/local/bin/node /usr/bin/node
-sudo ln -sf /usr/local/bin/npm /usr/bin/npm
+# Check Node.js installation
+if command -v node >/dev/null 2>&1; then
+    CURRENT_NODE_VERSION=$(node -v)
+    if [[ "$CURRENT_NODE_VERSION" == "v${NODE_VERSION}" ]]; then
+        echo "Node.js ${NODE_VERSION} is already installed, skipping installation..."
+    else
+        echo "Different Node.js version detected, proceeding with v${NODE_VERSION} installation..."
+        sudo apt-get remove -y nodejs nodejs-doc || true
+        cd /tmp
+        curl -fsSL "$NODE_DOWNLOAD_URL" -o "${NODE_DISTRO}.tar.xz"
+        tar -xf "${NODE_DISTRO}.tar.xz"
+        sudo cp -R "${NODE_DISTRO}"/* /usr/local/
+        sudo ln -sf /usr/local/bin/node /usr/bin/node
+        sudo ln -sf /usr/local/bin/npm /usr/bin/npm
+    fi
+else
+    echo "Node.js not found, installing version ${NODE_VERSION}..."
+    cd /tmp
+    curl -fsSL "$NODE_DOWNLOAD_URL" -o "${NODE_DISTRO}.tar.xz"
+    tar -xf "${NODE_DISTRO}.tar.xz"
+    sudo cp -R "${NODE_DISTRO}"/* /usr/local/
+    sudo ln -sf /usr/local/bin/node /usr/bin/node
+    sudo ln -sf /usr/local/bin/npm /usr/bin/npm
+fi
 
 # Verify Node.js installation
 echo "Verifying Node.js installation..."
@@ -62,6 +81,10 @@ npm config set unsafe-perm true
 npm config set legacy-peer-deps true
 npm config set audit false
 npm install --production
+
+# Build step
+echo "Building Gymnasticon..."
+npm run build
 
 # Create dist directory and copy files
 echo "Setting up distribution files..."
