@@ -80,24 +80,28 @@ cd "$INSTALL_DIR"
 npm config set unsafe-perm true
 npm config set legacy-peer-deps true
 npm config set audit false
+
+# Install dependencies including Babel
+echo "Installing dependencies and build tools..."
+npm install --save-dev @babel/core @babel/cli @babel/preset-env
 npm install --production
+
+# Configure Babel for CommonJS output
+echo "Configuring Babel..."
+echo '{
+  "presets": [
+    ["@babel/preset-env", {
+      "targets": {
+        "node": "14"
+      },
+      "modules": "commonjs"
+    }]
+  ]
+}' > .babelrc
 
 # Build step
 echo "Building Gymnasticon..."
-npm run build
-
-# Create dist directory and copy files
-echo "Setting up distribution files..."
-mkdir -p dist/app
-cp -r src/* dist/
-
-# Create executable wrapper
-echo "Creating executable wrapper..."
-mkdir -p "$INSTALL_DIR/node/bin"
-cat > "$INSTALL_DIR/node/bin/gymnasticon" << EOF
-#!/bin/bash
-NODE_PATH="$INSTALL_DIR/dist" exec /usr/local/bin/node "$INSTALL_DIR/dist/app/cli.js" "\$@"
-EOF
+./node_modules/.bin/babel src -d dist --copy-files
 
 # Set permissions
 echo "Setting up permissions..."
