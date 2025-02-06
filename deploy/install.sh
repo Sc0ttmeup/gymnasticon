@@ -60,7 +60,6 @@ cd "$INSTALL_DIR"
 npm config set unsafe-perm true
 npm config set legacy-peer-deps true
 npm config set audit false
-npm config set type commonjs
 
 # Install dependencies
 echo "Installing dependencies..."
@@ -70,15 +69,23 @@ npm install
 echo "Installing Babel for transpilation..."
 npm install --global @babel/cli @babel/core @babel/preset-env
 
-# Transpile ES modules to CommonJS
-echo "Transpiling Gymnasticon with Babel..."
-npx babel lib --out-dir dist --extensions ".js"
+# **Build Gymnasticon from `src/` (instead of `lib/`)**
+echo "Checking for source files..."
+if [ -d "$INSTALL_DIR/src" ]; then
+    echo "Building project from 'src/'..."
+    npm run build
+else
+    echo "ERROR: No source code found. Check repository structure."
+    exit 1
+fi
 
-# Verify build artifacts
-echo "Verifying build..."
-test -f "$INSTALL_DIR/dist/app/cli.js" || (echo "Build failed - cli.js not found" && exit 1)
+# Verify build artifacts (expecting `dist/`)
+if [ ! -f "$INSTALL_DIR/dist/app/cli.js" ]; then
+    echo "ERROR: Build failed - 'cli.js' not found in dist/"
+    exit 1
+fi
 
-# Create executable wrapper with CommonJS support
+# Create executable wrapper
 echo "Creating executable wrapper..."
 mkdir -p "$INSTALL_DIR/node/bin"
 cat > "$INSTALL_DIR/node/bin/gymnasticon" << EOF
