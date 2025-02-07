@@ -14,18 +14,7 @@ const defaults = {
   channel: 1,
 }
 
-/**
- * Handles communication with apps (e.g. Zwift) using the ANT+ Bicycle Power
- * profile (instantaneous cadence and power).
- */
 export class AntServer {
-  /**
-   * Create an AntServer instance.
-   * @param {Ant.USBDevice} antStick - ANT+ device instance
-   * @param {object} options
-   * @param {number} options.channel - ANT+ channel
-   * @param {number} options.deviceId - ANT+ device id
-   */
   constructor(antStick, options = {}) {
     const opts = {...defaults, ...options};
     this.stick = antStick;
@@ -33,7 +22,6 @@ export class AntServer {
     this.eventCount = 0;
     this.accumulatedPower = 0;
     this.channel = opts.channel;
-
     this.power = 0;
     this.cadence = 0;
 
@@ -43,76 +31,90 @@ export class AntServer {
     this._isRunning = false;
   }
 
-  /**
-   * Start the ANT+ server (setup channel and start broadcasting).
-   */
   start() {
-    const {stick, channel, deviceId} = this;
-    const messages = [
-      Ant.Messages.assignChannel(channel, 'transmit'),
-      Ant.Messages.setDevice(channel, deviceId, DEVICE_TYPE, DEVICE_NUMBER),
-      Ant.Messages.setFrequency(channel, RF_CHANNEL),
-      Ant.Messages.setPeriod(channel, PERIOD),
-      Ant.Messages.openChannel(channel),
-    ];
-    debuglog(`ANT+ server start [deviceId=${deviceId} channel=${channel}]`);
-    for (let m of messages) {
-      stick.write(m);
+    try {
+      const {stick, channel, deviceId} = this;
+      // Convert values to proper types to avoid type errors
+      const messages = [
+        Ant.Messages.assignChannel(Number(channel), 'transmit'),
+        Ant.Messages.setDevice(Number(channel), Number(deviceId), Number(DEVICE_TYPE), Number(DEVICE_NUMBER)),
+        Ant.Messages.setFrequency(Number(channel), Number(RF_CHANNEL)),
+        Ant.Messages.setPeriod(Number(channel), Number(PERIOD)),
+        Ant.Messages.openChannel(Number(channel))
+      ];
+      
+      debuglog(`ANT+ server start [deviceId=${deviceId} channel=${channel}]`);
+      
+      for (let m of messages) {
+        if (m && stick.write) {
+          stick.write(m);
+        }
+      }
+      
+      this.broadcastInterval.reset();
+      this._isRunning = true;
+    } catch (err) {
+      debuglog(`Error starting ANT+ server: ${err.message || err}`);
+      throw err;
     }
-    this.broadcastInterval.reset();
-    this._isRunning = true;
   }
 
   get isRunning() {
     return this._isRunning;
   }
 
-  /**
-   * Stop the ANT+ server (stop broadcasting and unassign channel).
-   */
   stop() {
     const {stick, channel} = this;
     this.broadcastInterval.cancel();
-    const messages = [
-      Ant.Messages.closeChannel(channel),
-      Ant.Messages.unassignChannel(channel),
-    ];
-    for (let m of messages) {
-      stick.write(m);
+    try {
+      const messages = [
+        Ant.Messages.closeChannel(Number(channel)),
+        Ant.Messages.unassignChannel(Number(channel))
+      ];
+      
+      for (let m of messages) {
+        if (m && stick.write) {
+          stick.write(m);
+        }
+      }
+      this._isRunning = false;
+    } catch (err) {
+      debuglog(`Error stopping ANT+ server: ${err.message || err}`);
     }
   }
 
-  /**
-   * Update instantaneous power and cadence.
-   * @param {object} measurement
-   * @param {number} measurement.power - power in watts
-   * @param {number} measurement.cadence - cadence in rpm
-   */
   updateMeasurement({ power, cadence }) {
-    this.power = power;
-    this.cadence = cadence;
+    this.power = Number(power) || 0;
+    this.cadence = Number(cadence) || 0;
   }
 
-  /**
-   * Broadcast instantaneous power and cadence.
-   */
   onBroadcastInterval() {
-    const {stick, channel, power, cadence} = this;
-    this.accumulatedPower += power;
-    this.accumulatedPower &= 0xffff;
-    const data = [
-      channel,
-      0x10, // power only
-      this.eventCount,
-      0xff, // pedal power not used
-      cadence,
-      ...Ant.Messages.intToLEHexArray(this.accumulatedPower, 2),
-      ...Ant.Messages.intToLEHexArray(power, 2),
-    ];
-    const message = Ant.Messages.broadcastData(data);
-    debuglog(`ANT+ broadcast power=${power}W cadence=${cadence}rpm accumulatedPower=${this.accumulatedPower}W eventCount=${this.eventCount} message=${message.toString('hex')}`);
-    stick.write(message);
-    this.eventCount++;
-    this.eventCount &= 0xff;
+    try {
+      const {stick, channel, power, cadence} = this;
+      this.accumulatedPower += power;
+      this.accumulatedPower &= 0xffff;
+      
+      const data = [
+        Number(channel),
+        0x10, // power only
+        this.eventCount,
+        0xff, // pedal power not used
+        Number(cadence),
+        ...Ant.Messages.intToLEHexArray(this.accumulatedPower, 2),
+        ...Ant.Messages.intToLEHexArray(power, 2)
+      ];
+      
+      const message = Ant.Messages.broadcastData(data);
+      debuglog(`ANT+ broadcast power=${power}W cadence=${cadence}rpm accumulatedPower=${this.accumulatedPower}W eventCount=${this.eventCount} message=${message.toString('hex')}`);
+      
+      if (message && stick.write) {
+        stick.write(message);
+      }
+      
+      this.eventCount++;
+      this.eventCount &= 0xff;
+    } catch (err) {
+      debuglog(`Error in broadcast interval: ${err.message || err}`);
+    }
   }
 }
