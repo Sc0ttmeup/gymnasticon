@@ -1,6 +1,5 @@
 import Ant from 'gd-ant-plus';
 import {Timer} from '../../util/timer';
-import {SpeedCadenceProfile} from './profiles/speed-cadence';
 
 const debuglog = require('debug')('gym:servers:ant');
 
@@ -38,9 +37,6 @@ export class AntServer {
     this.power = 0;
     this.cadence = 0;
 
-    // Initialize both profiles
-    this.speedCadenceProfile = new SpeedCadenceProfile(antStick);
-    
     this.broadcastInterval = new Timer(BROADCAST_INTERVAL);
     this.broadcastInterval.on('timeout', this.onBroadcastInterval.bind(this));
 
@@ -63,10 +59,6 @@ export class AntServer {
     for (let m of messages) {
       stick.write(m);
     }
-    
-    // Start CSC profile alongside power
-    this.speedCadenceProfile.start();
-    
     this.broadcastInterval.reset();
     this._isRunning = true;
   }
@@ -88,9 +80,6 @@ export class AntServer {
     for (let m of messages) {
       stick.write(m);
     }
-    
-    // Stop CSC profile
-    this.speedCadenceProfile.stop();
   }
 
   /**
@@ -123,11 +112,6 @@ export class AntServer {
     const message = Ant.Messages.broadcastData(data);
     debuglog(`ANT+ broadcast power=${power}W cadence=${cadence}rpm accumulatedPower=${this.accumulatedPower}W eventCount=${this.eventCount} message=${message.toString('hex')}`);
     stick.write(message);
-    
-    // Broadcast CSC data
-    const timestamp = process.uptime() * 1000;
-    this.speedCadenceProfile.broadcast(this.cadence, timestamp);
-    
     this.eventCount++;
     this.eventCount &= 0xff;
   }
