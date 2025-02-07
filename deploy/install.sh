@@ -70,7 +70,7 @@ npm config set audit false
 
 # Install dependencies including Babel and plugins
 echo "Installing dependencies and build tools..."
-npm install --save-dev @babel/core @babel/cli @babel/preset-env @babel/plugin-transform-runtime
+npm install --save-dev @babel/core @babel/cli @babel/preset-env @babel/plugin-transform-runtime @babel/plugin-proposal-class-properties
 npm install --save @babel/runtime
 npm install --production
 
@@ -87,18 +87,19 @@ cat > .babelrc << EOF
     }]
   ],
   "plugins": [
-    "@babel/plugin-transform-runtime"
+    "@babel/plugin-transform-runtime",
+    "@babel/plugin-proposal-class-properties"
   ],
   "sourceMaps": true,
   "retainLines": true
 }
 EOF
 
-# Build step with error handling
+# Build step with error handling and verbose output
 echo "Building Gymnasticon..."
 ./node_modules/.bin/babel src -d dist --copy-files --verbose || {
-    echo "Build failed. Checking source files..."
-    find src -name "*.js" -exec ./node_modules/.bin/babel --no-babelrc --presets=@babel/preset-env {} \;
+    echo "Build failed. Checking individual source files..."
+    find src -name "*.js" -type f -exec echo "Checking {}" \; -exec ./node_modules/.bin/babel --no-babelrc --presets=@babel/preset-env {} \;
     exit 1
 }
 
