@@ -85,7 +85,6 @@ echo '{
     }]
   ]
 }' > .babelrc
-
 # Build step
 echo "Building Gymnasticon..."
 ./node_modules/.bin/babel src -d dist --copy-files

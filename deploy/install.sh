@@ -28,6 +28,13 @@ echo "Installing system dependencies..."
 sudo apt-get update
 sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential curl xz-utils coreutils
 
+# Configure Bluetooth for both receiving and broadcasting
+echo "Configuring Bluetooth..."
+sudo btmgmt le on
+echo "[General]
+ControllerMode = le
+" | sudo tee -a /etc/bluetooth/main.conf
+
 # Install Node.js
 echo "Installing Node.js ${NODE_VERSION}..."
 cd /tmp
@@ -61,14 +68,16 @@ npm config set unsafe-perm true
 npm config set legacy-peer-deps true
 npm config set audit false
 
-# Install dependencies including Babel
+# Install dependencies including Babel and plugins
 echo "Installing dependencies and build tools..."
-npm install --save-dev @babel/core @babel/cli @babel/preset-env
+npm install --save-dev @babel/core @babel/cli @babel/preset-env @babel/plugin-transform-runtime
+npm install --save @babel/runtime
 npm install --production
 
-# Configure Babel
+# Configure Babel with detailed settings
 echo "Configuring Babel..."
-echo '{
+cat > .babelrc << EOF
+{
   "presets": [
     ["@babel/preset-env", {
       "targets": {
@@ -76,12 +85,22 @@ echo '{
       },
       "modules": "commonjs"
     }]
-  ]
-}' > .babelrc
+  ],
+  "plugins": [
+    "@babel/plugin-transform-runtime"
+  ],
+  "sourceMaps": true,
+  "retainLines": true
+}
+EOF
 
-# Build step
+# Build step with error handling
 echo "Building Gymnasticon..."
-./node_modules/.bin/babel src -d dist --copy-files
+./node_modules/.bin/babel src -d dist --copy-files --verbose || {
+    echo "Build failed. Checking source files..."
+    find src -name "*.js" -exec ./node_modules/.bin/babel --no-babelrc --presets=@babel/preset-env {} \;
+    exit 1
+}
 
 # Create executable wrapper
 echo "Creating executable wrapper..."
