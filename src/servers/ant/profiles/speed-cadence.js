@@ -1,4 +1,4 @@
-const Ant = require('ant-plus');
+import Ant from 'gd-ant-plus';
 
 // ANT+ Speed & Cadence Profile (0x79)
 const DEVICE_TYPE = 0x79;
