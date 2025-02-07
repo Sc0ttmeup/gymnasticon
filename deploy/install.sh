@@ -1,5 +1,9 @@
 #!/bin/bash
+# File: install.sh (root folder)
 # Installation script for Gymnasticon on RPiZero with Node 14
+# (Installs system dependencies, Node.js v14.21.3 for ARMv6l,
+# clones the repository, installs npm packages, builds with Babel,
+# creates an executable wrapper, and sets up Bluetooth and a systemd service.)
 
 set -e
 
@@ -68,7 +72,8 @@ npm install --production
 
 # Configure Babel
 echo "Configuring Babel..."
-echo '{
+cat > .babelrc << 'EOF'
+{
   "presets": [
     ["@babel/preset-env", {
       "targets": {
@@ -77,7 +82,8 @@ echo '{
       "modules": "commonjs"
     }]
   ]
-}' > .babelrc
+}
+EOF
 
 # Build step
 echo "Building Gymnasticon..."
@@ -86,9 +92,9 @@ echo "Building Gymnasticon..."
 # Create executable wrapper
 echo "Creating executable wrapper..."
 mkdir -p "$INSTALL_DIR/node/bin"
-cat > "$INSTALL_DIR/node/bin/gymnasticon" << EOF
+cat > "$INSTALL_DIR/node/bin/gymnasticon" << 'EOF'
 #!/bin/bash
-NODE_PATH="$INSTALL_DIR/dist" exec /usr/local/bin/node "$INSTALL_DIR/dist/app/cli.js" "\$@"
+NODE_PATH="$INSTALL_DIR/dist" exec /usr/local/bin/node "$INSTALL_DIR/dist/app/cli.js" "$@"
 EOF
 
 # Set permissions
@@ -101,13 +107,12 @@ echo "Configuring Bluetooth..."
 sudo usermod -a -G bluetooth pi
 sudo setcap cap_net_raw+eip $(eval readlink -f `which node`)
 
-# <-- Added Bluetooth LE configuration
+# Enable Bluetooth LE mode
 echo "Enabling Bluetooth LE mode..."
 sudo btmgmt le on
 echo "[General]
 ControllerMode = le
 " | sudo tee -a /etc/bluetooth/main.conf
-# End added Bluetooth LE configuration
 
 # Enable and start Bluetooth
 echo "Enabling Bluetooth service..."
