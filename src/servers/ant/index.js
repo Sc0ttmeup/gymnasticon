@@ -1,155 +1,134 @@
-#!/bin/bash
-# Installation script for Gymnasticon on RPiZero with Node 14
+import Ant from 'gd-ant-plus';
+import {Timer} from '../../util/timer';
+import {SpeedCadenceProfile} from './profiles/speed-cadence';
 
-set -e
+const debuglog = require('debug')('gym:servers:ant');
 
-echo "=== Starting Gymnasticon Installation ==="
+const DEVICE_TYPE = 0x0b; // power meter
+const DEVICE_NUMBER = 1;
+const PERIOD = 8182; // 8182/32768 ~4hz
+const RF_CHANNEL = 57; // 2457 MHz
+const BROADCAST_INTERVAL = PERIOD / 32768; // seconds
 
-# Configuration
-NODE_VERSION="14.21.3"
-NODE_DISTRO="node-v${NODE_VERSION}-linux-armv6l"
-NODE_DOWNLOAD_URL="https://unofficial-builds.nodejs.org/download/release/v${NODE_VERSION}/${NODE_DISTRO}.tar.xz"
-INSTALL_DIR="/opt/gymnasticon"
-TMP_CLONE_DIR="/tmp/gymnasticon-clone"
+const defaults = {
+  deviceId: 11234,
+  channel: 1,
+}
 
-# Environment setup for low-memory devices
-export NODE_OPTIONS="--max-old-space-size=512"
-export npm_config_build_from_source=true
-export DEBUG=gym:*
+/**
+ * Handles communication with apps (e.g. Zwift) using the ANT+ Bicycle Power
+ * profile (instantaneous cadence and power).
+ */
+export class AntServer {
+  /**
+   * Create an AntServer instance.
+   * @param {Ant.USBDevice} antStick - ANT+ device instance
+   * @param {object} options
+   * @param {number} options.channel - ANT+ channel
+   * @param {number} options.deviceId - ANT+ device id
+   */
+  constructor(antStick, options = {}) {
+    const opts = {...defaults, ...options};
+    this.stick = antStick;
+    this.deviceId = opts.deviceId;
+    this.eventCount = 0;
+    this.accumulatedPower = 0;
+    this.channel = opts.channel;
 
-# Clean previous installations
-echo "Cleaning previous installations..."
-sudo systemctl stop gymnasticon 2>/dev/null || true
-sudo systemctl disable gymnasticon 2>/dev/null || true
-sudo rm -rf "$INSTALL_DIR"
+    this.power = 0;
+    this.cadence = 0;
 
-# Check and install system dependencies
-echo "Installing system dependencies..."
-sudo apt-get update
-sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential curl xz-utils coreutils
+    // Initialize both profiles
+    this.speedCadenceProfile = new SpeedCadenceProfile(antStick);
+    
+    this.broadcastInterval = new Timer(BROADCAST_INTERVAL);
+    this.broadcastInterval.on('timeout', this.onBroadcastInterval.bind(this));
 
-# Configure Bluetooth for both receiving and broadcasting
-echo "Configuring Bluetooth..."
-sudo btmgmt le on
-echo "[General]
-ControllerMode = le
-" | sudo tee -a /etc/bluetooth/main.conf
+    this._isRunning = false;
+  }
 
-# Install Node.js
-echo "Installing Node.js ${NODE_VERSION}..."
-cd /tmp
-curl -fsSL "$NODE_DOWNLOAD_URL" -o "${NODE_DISTRO}.tar.xz"
-tar -xf "${NODE_DISTRO}.tar.xz"
-sudo cp -R "${NODE_DISTRO}"/* /usr/local/
-sudo ln -sf /usr/local/bin/node /usr/bin/node
-sudo ln -sf /usr/local/bin/npm /usr/bin/npm
+  /**
+   * Start the ANT+ server (setup channel and start broadcasting).
+   */
+  start() {
+    const {stick, channel, deviceId} = this;
+    const messages = [
+      Ant.Messages.assignChannel(channel, 'transmit'),
+      Ant.Messages.setDevice(channel, deviceId, DEVICE_TYPE, DEVICE_NUMBER),
+      Ant.Messages.setFrequency(channel, RF_CHANNEL),
+      Ant.Messages.setPeriod(channel, PERIOD),
+      Ant.Messages.openChannel(channel),
+    ];
+    debuglog(`ANT+ server start [deviceId=${deviceId} channel=${channel}]`);
+    for (let m of messages) {
+      stick.write(m);
+    }
+    
+    // Start CSC profile alongside power
+    this.speedCadenceProfile.start();
+    
+    this.broadcastInterval.reset();
+    this._isRunning = true;
+  }
 
-# Verify Node.js installation
-echo "Verifying Node.js installation..."
-node -v
-npm -v
+  get isRunning() {
+    return this._isRunning;
+  }
 
-# Clone Gymnasticon repository
-echo "Cloning Gymnasticon repository..."
-rm -rf "$TMP_CLONE_DIR"
-git clone --depth 1 https://github.com/4o4R/gymnasticon.git "$TMP_CLONE_DIR"
+  /**
+   * Stop the ANT+ server (stop broadcasting and unassign channel).
+   */
+  stop() {
+    const {stick, channel} = this;
+    this.broadcastInterval.cancel();
+    const messages = [
+      Ant.Messages.closeChannel(channel),
+      Ant.Messages.unassignChannel(channel),
+    ];
+    for (let m of messages) {
+      stick.write(m);
+    }
+    
+    // Stop CSC profile
+    this.speedCadenceProfile.stop();
+  }
 
-# Install Gymnasticon
-echo "Installing Gymnasticon..."
-sudo mkdir -p "$INSTALL_DIR"
-sudo chown -R pi:pi "$INSTALL_DIR"
-cp -R "$TMP_CLONE_DIR"/* "$INSTALL_DIR"
-rm -rf "$TMP_CLONE_DIR"
+  /**
+   * Update instantaneous power and cadence.
+   * @param {object} measurement
+   * @param {number} measurement.power - power in watts
+   * @param {number} measurement.cadence - cadence in rpm
+   */
+  updateMeasurement({ power, cadence }) {
+    this.power = power;
+    this.cadence = cadence;
+  }
 
-# NPM setup and installation
-echo "Setting up npm and installing dependencies..."
-cd "$INSTALL_DIR"
-npm config set unsafe-perm true
-npm config set legacy-peer-deps true
-npm config set audit false
-
-# Install dependencies including Babel
-echo "Installing dependencies and build tools..."
-npm install --save-dev @babel/core @babel/cli @babel/preset-env
-npm install --production
-
-# Configure Babel
-echo "Configuring Babel..."
-echo '{
-  "presets": [
-    ["@babel/preset-env", {
-      "targets": {
-        "node": "14"
-      },
-      "modules": "commonjs"
-    }]
-  ]
-}' > .babelrc
-# Build step
-echo "Building Gymnasticon..."
-./node_modules/.bin/babel src -d dist --copy-files
-
-# Create executable wrapper
-echo "Creating executable wrapper..."
-mkdir -p "$INSTALL_DIR/node/bin"
-cat > "$INSTALL_DIR/node/bin/gymnasticon" << EOF
-#!/bin/bash
-NODE_PATH="$INSTALL_DIR/dist" exec /usr/local/bin/node "$INSTALL_DIR/dist/app/cli.js" "\$@"
-EOF
-
-# Set permissions
-echo "Setting up permissions..."
-chmod +x "$INSTALL_DIR/node/bin/gymnasticon"
-sudo chown -R pi:pi "$INSTALL_DIR"
-
-# Configure Bluetooth
-echo "Configuring Bluetooth..."
-sudo usermod -a -G bluetooth pi
-sudo setcap cap_net_raw+eip $(eval readlink -f `which node`)
-
-# Enable and start Bluetooth
-echo "Enabling Bluetooth service..."
-sudo systemctl enable bluetooth
-sudo systemctl start bluetooth
-sleep 5
-
-# Setup systemd service
-echo "Setting up systemd service..."
-cat <<EOF | sudo tee /etc/systemd/system/gymnasticon.service
-[Unit]
-Description=Gymnasticon
-After=bluetooth.service network.target
-Wants=bluetooth.service
-
-[Service]
-ExecStart=/usr/bin/node $INSTALL_DIR/dist/app/cli.js
-WorkingDirectory=$INSTALL_DIR
-Restart=always
-RestartSec=10
-User=pi
-Group=pi
-Environment=NODE_ENV=production
-Environment=DEBUG=gym:*
-Environment=NOBLE_HCI_DEVICE_ID=hci0
-Environment=BLENO_HCI_DEVICE_ID=hci0
-Environment=NOBLE_MULTI_ROLE=1
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=gymnasticon
-ExecStartPre=/bin/sleep 10
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# Restart Bluetooth and start service
-echo "Starting services..."
-sudo systemctl restart bluetooth
-sleep 5
-sudo systemctl daemon-reload
-sudo systemctl enable gymnasticon
-sudo systemctl restart gymnasticon
-
-echo "=== Gymnasticon Installation Complete ==="
-echo "Service status:"
-sudo systemctl status gymnasticon --no-pager
+  /**
+   * Broadcast instantaneous power and cadence.
+   */
+  onBroadcastInterval() {
+    const {stick, channel, power, cadence} = this;
+    this.accumulatedPower += power;
+    this.accumulatedPower &= 0xffff;
+    const data = [
+      channel,
+      0x10, // power only
+      this.eventCount,
+      0xff, // pedal power not used
+      cadence,
+      ...Ant.Messages.intToLEHexArray(this.accumulatedPower, 2),
+      ...Ant.Messages.intToLEHexArray(power, 2),
+    ];
+    const message = Ant.Messages.broadcastData(data);
+    debuglog(`ANT+ broadcast power=${power}W cadence=${cadence}rpm accumulatedPower=${this.accumulatedPower}W eventCount=${this.eventCount} message=${message.toString('hex')}`);
+    stick.write(message);
+    
+    // Broadcast CSC data
+    const timestamp = process.uptime() * 1000;
+    this.speedCadenceProfile.broadcast(this.cadence, timestamp);
+    
+    this.eventCount++;
+    this.eventCount &= 0xff;
+  }
+}
