@@ -18,10 +18,10 @@ export class AntServer {
   constructor(antStick, options = {}) {
     const opts = {...defaults, ...options};
     this.stick = antStick;
-    this.deviceId = opts.deviceId;
+    this.deviceId = Number(opts.deviceId);
     this.eventCount = 0;
     this.accumulatedPower = 0;
-    this.channel = opts.channel;
+    this.channel = Number(opts.channel);
     this.power = 0;
     this.cadence = 0;
 
@@ -34,19 +34,21 @@ export class AntServer {
   start() {
     try {
       const {stick, channel, deviceId} = this;
-      // Convert values to proper types to avoid type errors
+      // You can try either 'transmit' or 'transmit_only' if you continue to see errors.
+      const channelType = 'transmit'; // Try 'transmit_only' if needed.
+      
       const messages = [
-        Ant.Messages.assignChannel(Number(channel), 'transmit'),
+        Ant.Messages.assignChannel(Number(channel), channelType),
         Ant.Messages.setDevice(Number(channel), Number(deviceId), Number(DEVICE_TYPE), Number(DEVICE_NUMBER)),
         Ant.Messages.setFrequency(Number(channel), Number(RF_CHANNEL)),
         Ant.Messages.setPeriod(Number(channel), Number(PERIOD)),
         Ant.Messages.openChannel(Number(channel))
       ];
       
-      debuglog(`ANT+ server start [deviceId=${deviceId} channel=${channel}]`);
+      debuglog(`ANT+ server start [deviceId=${deviceId} channel=${channel} type=${channelType}]`);
       
       for (let m of messages) {
-        if (m && stick.write) {
+        if (m && typeof stick.write === 'function') {
           stick.write(m);
         }
       }
@@ -73,7 +75,7 @@ export class AntServer {
       ];
       
       for (let m of messages) {
-        if (m && stick.write) {
+        if (m && typeof stick.write === 'function') {
           stick.write(m);
         }
       }
@@ -107,7 +109,7 @@ export class AntServer {
       const message = Ant.Messages.broadcastData(data);
       debuglog(`ANT+ broadcast power=${power}W cadence=${cadence}rpm accumulatedPower=${this.accumulatedPower}W eventCount=${this.eventCount} message=${message.toString('hex')}`);
       
-      if (message && stick.write) {
+      if (message && typeof stick.write === 'function') {
         stick.write(message);
       }
       
