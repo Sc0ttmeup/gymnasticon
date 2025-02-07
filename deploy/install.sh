@@ -76,9 +76,23 @@ npm config set unsafe-perm true
 npm config set legacy-peer-deps true
 npm config set audit false
 
-# Install dependencies and build
-echo "Installing dependencies..."
-npm install
+# Install dependencies including Babel
+echo "Installing dependencies and build tools..."
+npm install --save-dev @babel/core @babel/cli @babel/preset-env
+npm install --production
+
+# Configure Babel
+echo "Configuring Babel..."
+echo '{
+  "presets": [
+    ["@babel/preset-env", {
+      "targets": {
+        "node": "14"
+      },
+      "modules": "commonjs"
+    }]
+  ]
+}' > .babelrc
 
 # Build step
 echo "Building Gymnasticon..."
