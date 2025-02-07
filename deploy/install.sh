@@ -1,9 +1,10 @@
 #!/bin/bash
-# File: install.sh (root folder)
-# Installation script for Gymnasticon on RPiZero with Node 14
-# (Installs system dependencies, Node.js v14.21.3 for ARMv6l,
-# clones the repository, installs npm packages, builds with Babel,
-# creates an executable wrapper, and sets up Bluetooth and a systemd service.)
+# File: install.sh
+# Installation script for Gymnasticon on RPiZero with Node 14.
+# This script installs system dependencies, installs Node.js 14.21.3 (for ARMv6l),
+# clones the Gymnasticon repository, installs npm packages as the "pi" user,
+# builds the project with Babel, creates an executable wrapper,
+# and sets up Bluetooth and a systemd service.
 
 set -e
 
@@ -32,7 +33,7 @@ echo "Installing system dependencies..."
 sudo apt-get update
 sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential curl xz-utils coreutils
 
-# Install Node.js
+# Install Node.js 14.21.3
 echo "Installing Node.js ${NODE_VERSION}..."
 cd /tmp
 curl -fsSL "$NODE_DOWNLOAD_URL" -o "${NODE_DISTRO}.tar.xz"
@@ -51,24 +52,23 @@ echo "Cloning Gymnasticon repository..."
 rm -rf "$TMP_CLONE_DIR"
 git clone --depth 1 https://github.com/4o4R/gymnasticon.git "$TMP_CLONE_DIR"
 
-# Install Gymnasticon
+# Install Gymnasticon files
 echo "Installing Gymnasticon..."
 sudo mkdir -p "$INSTALL_DIR"
+sudo cp -R "$TMP_CLONE_DIR"/* "$INSTALL_DIR"
 sudo chown -R pi:pi "$INSTALL_DIR"
-cp -R "$TMP_CLONE_DIR"/* "$INSTALL_DIR"
 rm -rf "$TMP_CLONE_DIR"
 
-# NPM setup and installation
+# NPM setup and installation (run as user pi)
 echo "Setting up npm and installing dependencies..."
 cd "$INSTALL_DIR"
-npm config set unsafe-perm true
-npm config set legacy-peer-deps true
-npm config set audit false
+sudo -u pi npm config set unsafe-perm true
+sudo -u pi npm config set legacy-peer-deps true
+sudo -u pi npm config set audit false
 
-# Install dependencies including Babel
 echo "Installing dependencies and build tools..."
-npm install --save-dev @babel/core @babel/cli @babel/preset-env
-npm install --production
+sudo -u pi npm install --save-dev @babel/core @babel/cli @babel/preset-env
+sudo -u pi npm install --production
 
 # Configure Babel
 echo "Configuring Babel..."
@@ -85,24 +85,20 @@ cat > .babelrc << 'EOF'
 }
 EOF
 
-# Build step
+# Build step using Babel (run as pi)
 echo "Building Gymnasticon..."
-./node_modules/.bin/babel src -d dist --copy-files
+sudo -u pi ./node_modules/.bin/babel src -d dist --copy-files
 
 # Create executable wrapper
 echo "Creating executable wrapper..."
-mkdir -p "$INSTALL_DIR/node/bin"
+sudo -u pi mkdir -p "$INSTALL_DIR/node/bin"
 cat > "$INSTALL_DIR/node/bin/gymnasticon" << 'EOF'
 #!/bin/bash
 NODE_PATH="$INSTALL_DIR/dist" exec /usr/local/bin/node "$INSTALL_DIR/dist/app/cli.js" "$@"
 EOF
+sudo chmod +x "$INSTALL_DIR/node/bin/gymnasticon"
 
-# Set permissions
-echo "Setting up permissions..."
-chmod +x "$INSTALL_DIR/node/bin/gymnasticon"
-sudo chown -R pi:pi "$INSTALL_DIR"
-
-# Configure Bluetooth
+# Configure Bluetooth: add pi to the bluetooth group and set capabilities
 echo "Configuring Bluetooth..."
 sudo usermod -a -G bluetooth pi
 sudo setcap cap_net_raw+eip $(eval readlink -f `which node`)
@@ -114,13 +110,13 @@ echo "[General]
 ControllerMode = le
 " | sudo tee -a /etc/bluetooth/main.conf
 
-# Enable and start Bluetooth
+# Enable and start Bluetooth service
 echo "Enabling Bluetooth service..."
 sudo systemctl enable bluetooth
 sudo systemctl start bluetooth
 sleep 5
 
-# Setup systemd service
+# Setup systemd service for Gymnasticon
 echo "Setting up systemd service..."
 cat <<EOF | sudo tee /etc/systemd/system/gymnasticon.service
 [Unit]
@@ -149,7 +145,7 @@ ExecStartPre=/bin/sleep 10
 WantedBy=multi-user.target
 EOF
 
-# Restart Bluetooth and start service
+# Restart Bluetooth and start Gymnasticon service
 echo "Starting services..."
 sudo systemctl restart bluetooth
 sleep 5
