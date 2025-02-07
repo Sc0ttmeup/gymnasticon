@@ -35,14 +35,6 @@ echo "[General]
 ControllerMode = le
 " | sudo tee -a /etc/bluetooth/main.conf
 
-# Clean up existing Node installation
-echo "Cleaning up existing Node installation..."
-sudo killall node || true
-sudo rm -f /usr/local/bin/node
-sudo rm -f /usr/bin/node
-sudo rm -f /usr/local/bin/npm
-sudo rm -f /usr/bin/npm
-
 # Install Node.js
 echo "Installing Node.js ${NODE_VERSION}..."
 cd /tmp
@@ -72,27 +64,15 @@ rm -rf "$TMP_CLONE_DIR"
 # NPM setup and installation
 echo "Setting up npm and installing dependencies..."
 cd "$INSTALL_DIR"
+rm -rf node_modules
+rm -f package-lock.json
 npm config set unsafe-perm true
 npm config set legacy-peer-deps true
 npm config set audit false
 
-# Install dependencies including Babel
-echo "Installing dependencies and build tools..."
-npm install --save-dev @babel/core @babel/cli @babel/preset-env
-npm install --production
-
-# Configure Babel
-echo "Configuring Babel..."
-echo '{
-  "presets": [
-    ["@babel/preset-env", {
-      "targets": {
-        "node": "14"
-      },
-      "modules": "commonjs"
-    }]
-  ]
-}' > .babelrc
+# Install dependencies
+echo "Installing dependencies..."
+npm install --no-package-lock
 
 # Build step
 echo "Building Gymnasticon..."
