@@ -35,6 +35,14 @@ echo "[General]
 ControllerMode = le
 " | sudo tee -a /etc/bluetooth/main.conf
 
+# Clean up any existing Node installation
+echo "Cleaning up existing Node installation..."
+sudo killall node || true
+sudo rm -f /usr/local/bin/node
+sudo rm -f /usr/bin/node
+sudo rm -f /usr/local/bin/npm
+sudo rm -f /usr/bin/npm
+
 # Install Node.js
 echo "Installing Node.js ${NODE_VERSION}..."
 cd /tmp
@@ -66,15 +74,18 @@ echo "Setting up npm and installing dependencies..."
 cd "$INSTALL_DIR"
 rm -rf node_modules
 rm -f package-lock.json
+
+# Set npm configuration (including using a single job for native builds)
 npm config set unsafe-perm true
 npm config set legacy-peer-deps true
 npm config set audit false
+npm config set jobs 1
 
-# Install dependencies
+# Install dependencies (do not use --production so that devDependencies are built)
 echo "Installing dependencies..."
 npm install --no-package-lock
 
-# Build step
+# Build step using Babel
 echo "Building Gymnasticon..."
 "$INSTALL_DIR/node_modules/.bin/babel" src -d dist --copy-files
 
@@ -91,18 +102,18 @@ echo "Setting up permissions..."
 chmod +x "$INSTALL_DIR/node/bin/gymnasticon"
 sudo chown -R pi:pi "$INSTALL_DIR"
 
-# Configure Bluetooth
+# Configure Bluetooth (permissions & capabilities)
 echo "Configuring Bluetooth..."
 sudo usermod -a -G bluetooth pi
-sudo setcap cap_net_raw+eip $(eval readlink -f `which node`)
+sudo setcap cap_net_raw+eip \$(eval readlink -f \`which node\`)
 
-# Enable and start Bluetooth
+# Enable and start Bluetooth service
 echo "Enabling Bluetooth service..."
 sudo systemctl enable bluetooth
 sudo systemctl start bluetooth
 sleep 5
 
-# Setup systemd service
+# Setup systemd service for Gymnasticon
 echo "Setting up systemd service..."
 cat <<EOF | sudo tee /etc/systemd/system/gymnasticon.service
 [Unit]
@@ -131,7 +142,7 @@ ExecStartPre=/bin/sleep 10
 WantedBy=multi-user.target
 EOF
 
-# Restart Bluetooth and start service
+# Restart Bluetooth and start Gymnasticon service
 echo "Starting services..."
 sudo systemctl restart bluetooth
 sleep 5
