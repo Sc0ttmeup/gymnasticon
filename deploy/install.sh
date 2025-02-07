@@ -23,39 +23,19 @@ sudo systemctl stop gymnasticon 2>/dev/null || true
 sudo systemctl disable gymnasticon 2>/dev/null || true
 sudo rm -rf "$INSTALL_DIR"
 
-# Check and install system dependencies if needed
-if dpkg -l | grep -q "bluetooth\|bluez\|libbluetooth-dev\|libudev-dev"; then
-    echo "System dependencies already installed, skipping..."
-else
-    echo "Installing system dependencies..."
-    sudo apt-get update
-    sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential curl xz-utils coreutils
-fi
+# Check and install system dependencies
+echo "Installing system dependencies..."
+sudo apt-get update
+sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential curl xz-utils coreutils
 
-# Check Node.js installation
-if command -v node >/dev/null 2>&1; then
-    CURRENT_NODE_VERSION=$(node -v)
-    if [[ "$CURRENT_NODE_VERSION" == "v${NODE_VERSION}" ]]; then
-        echo "Node.js ${NODE_VERSION} is already installed, skipping installation..."
-    else
-        echo "Different Node.js version detected, proceeding with v${NODE_VERSION} installation..."
-        sudo apt-get remove -y nodejs nodejs-doc || true
-        cd /tmp
-        curl -fsSL "$NODE_DOWNLOAD_URL" -o "${NODE_DISTRO}.tar.xz"
-        tar -xf "${NODE_DISTRO}.tar.xz"
-        sudo cp -R "${NODE_DISTRO}"/* /usr/local/
-        sudo ln -sf /usr/local/bin/node /usr/bin/node
-        sudo ln -sf /usr/local/bin/npm /usr/bin/npm
-    fi
-else
-    echo "Node.js not found, installing version ${NODE_VERSION}..."
-    cd /tmp
-    curl -fsSL "$NODE_DOWNLOAD_URL" -o "${NODE_DISTRO}.tar.xz"
-    tar -xf "${NODE_DISTRO}.tar.xz"
-    sudo cp -R "${NODE_DISTRO}"/* /usr/local/
-    sudo ln -sf /usr/local/bin/node /usr/bin/node
-    sudo ln -sf /usr/local/bin/npm /usr/bin/npm
-fi
+# Install Node.js
+echo "Installing Node.js ${NODE_VERSION}..."
+cd /tmp
+curl -fsSL "$NODE_DOWNLOAD_URL" -o "${NODE_DISTRO}.tar.xz"
+tar -xf "${NODE_DISTRO}.tar.xz"
+sudo cp -R "${NODE_DISTRO}"/* /usr/local/
+sudo ln -sf /usr/local/bin/node /usr/bin/node
+sudo ln -sf /usr/local/bin/npm /usr/bin/npm
 
 # Verify Node.js installation
 echo "Verifying Node.js installation..."
@@ -74,7 +54,7 @@ sudo chown -R pi:pi "$INSTALL_DIR"
 cp -R "$TMP_CLONE_DIR"/* "$INSTALL_DIR"
 rm -rf "$TMP_CLONE_DIR"
 
-# NPM configuration and installation
+# NPM setup and installation
 echo "Setting up npm and installing dependencies..."
 cd "$INSTALL_DIR"
 npm config set unsafe-perm true
@@ -86,7 +66,7 @@ echo "Installing dependencies and build tools..."
 npm install --save-dev @babel/core @babel/cli @babel/preset-env
 npm install --production
 
-# Configure Babel for CommonJS output
+# Configure Babel
 echo "Configuring Babel..."
 echo '{
   "presets": [
@@ -118,7 +98,14 @@ sudo chown -R pi:pi "$INSTALL_DIR"
 
 # Configure Bluetooth
 echo "Configuring Bluetooth..."
+sudo usermod -a -G bluetooth pi
 sudo setcap cap_net_raw+eip $(eval readlink -f `which node`)
+
+# Enable and start Bluetooth
+echo "Enabling Bluetooth service..."
+sudo systemctl enable bluetooth
+sudo systemctl start bluetooth
+sleep 5
 
 # Setup systemd service
 echo "Setting up systemd service..."
@@ -137,17 +124,22 @@ User=pi
 Group=pi
 Environment=NODE_ENV=production
 Environment=DEBUG=gym:*
+Environment=NOBLE_HCI_DEVICE_ID=hci0
+Environment=BLENO_HCI_DEVICE_ID=hci0
+Environment=NOBLE_MULTI_ROLE=1
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=gymnasticon
-ExecStartPre=/bin/sleep 5
+ExecStartPre=/bin/sleep 10
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-# Enable and start service
-echo "Starting Gymnasticon service..."
+# Restart Bluetooth and start service
+echo "Starting services..."
+sudo systemctl restart bluetooth
+sleep 5
 sudo systemctl daemon-reload
 sudo systemctl enable gymnasticon
 sudo systemctl restart gymnasticon
