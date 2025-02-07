@@ -35,6 +35,14 @@ echo "[General]
 ControllerMode = le
 " | sudo tee -a /etc/bluetooth/main.conf
 
+# Clean up existing Node installation
+echo "Cleaning up existing Node installation..."
+sudo killall node || true
+sudo rm -f /usr/local/bin/node
+sudo rm -f /usr/bin/node
+sudo rm -f /usr/local/bin/npm
+sudo rm -f /usr/bin/npm
+
 # Install Node.js
 echo "Installing Node.js ${NODE_VERSION}..."
 cd /tmp
