@@ -1,20 +1,23 @@
-import {EventEmitter} from 'events';
+// File: util/timer.js
+// Drift-compensated Timer that emits a 'timeout' event after a specified interval.
+// This version adjusts for drift by calculating the expected expiration time 
+// and then compensating in the delay for subsequent timeouts.
 
-/**
- * Emit an event after the specified time interval. One-shot or repeated.
- */
+import { EventEmitter } from 'events';
+
 export class Timer extends EventEmitter {
   /**
    * Create a Timer instance.
-   * @param {number} interval - time until expires in seconds
+   * @param {number} interval - time until expires in seconds.
    * @param {object} options
-   * @param {boolean} [options.repeats=true] - restart the timer each time it expires
+   * @param {boolean} [options.repeats=true] - restart the timer each time it expires.
    */
-  constructor(interval, { repeats = true }={}) {
+  constructor(interval, { repeats = true } = {}) {
     super();
-    this._interval = interval;
+    this._interval = interval; // in seconds
     this._repeats = repeats;
     this._timeout = null;
+    this._expected = 0; // expected timestamp (in ms) for next expiration
     this.onExpire = this.onExpire.bind(this);
   }
 
@@ -26,11 +29,15 @@ export class Timer extends EventEmitter {
   }
 
   /**
-   * Reset the timer.
+   * Reset the timer with drift compensation.
    */
   reset() {
     this.clearTimeout();
-    this._timeout = Number.isFinite(this._interval) && this._interval > 0 ? setTimeout(this.onExpire, this._interval*1000) : null;
+    // Set the expected expiration time based on the current time.
+    this._expected = Date.now() + this._interval * 1000;
+    if (Number.isFinite(this._interval) && this._interval > 0) {
+      this._timeout = setTimeout(this.onExpire, this._interval * 1000);
+    }
   }
 
   /**
@@ -42,22 +49,25 @@ export class Timer extends EventEmitter {
 
   /**
    * Handle timer expiry.
-   * @emits Timer#timeout
+   * Emits a 'timeout' event with the interval.
    * @private
    */
   onExpire() {
-    /**
-     * Timeout event.
-     * @event Timer#timeout
-     */
+    const now = Date.now();
+    // Calculate drift: the difference between now and the expected expiration.
+    const drift = now - this._expected;
     this.emit('timeout', this._interval);
     if (this._repeats) {
-      this.reset();
+      // Increment expected expiration by the interval.
+      this._expected += this._interval * 1000;
+      // Calculate the next delay, compensating for drift.
+      const nextDelay = Math.max(0, this._interval * 1000 - drift);
+      this._timeout = setTimeout(this.onExpire, nextDelay);
     }
   }
 
   /**
-   * Clear internal timer.
+   * Clear the internal timeout.
    * @private
    */
   clearTimeout() {
