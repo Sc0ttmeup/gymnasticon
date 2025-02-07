@@ -103,6 +103,14 @@ echo '{
 echo "Building Gymnasticon..."
 ./node_modules/.bin/babel src -d dist --copy-files
 
+# Create executable wrapper
+echo "Creating executable wrapper..."
+mkdir -p "$INSTALL_DIR/node/bin"
+cat > "$INSTALL_DIR/node/bin/gymnasticon" << EOF
+#!/bin/bash
+NODE_PATH="$INSTALL_DIR/dist" exec /usr/local/bin/node "$INSTALL_DIR/dist/app/cli.js" "\$@"
+EOF
+
 # Set permissions
 echo "Setting up permissions..."
 chmod +x "$INSTALL_DIR/node/bin/gymnasticon"
