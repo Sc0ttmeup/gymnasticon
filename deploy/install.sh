@@ -90,7 +90,7 @@ EOF
 # ------------------------------------------------------
 # Build Step
 # ------------------------------------------------------
-sudo -u pi ./node_modules/.bin/babel src -d dist --copy-files --keep-file-extension --root-mode upward
+sudo -u pi ./node_modules/.bin/babel src -d dist --copy-files --keep-file-extension --root-mode upward-optional
 
 # ------------------------------------------------------
 # Bluetooth Initialization Script
