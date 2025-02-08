@@ -1,11 +1,9 @@
 #!/bin/bash
 # File: install.sh
-# Location: Repository root
+# Location: repository root
 # Description: Installs Gymnasticon on a Raspberry Pi Zero with Node.js 14,
 # initializes the Bluetooth adapter (with retries), applies system optimizations,
 # sets up log rotation, and configures systemd services.
-# This version integrates Bluetooth initialization both as a dedicated service and
-# as an ExecStartPre step in the Gymnasticon service to help ensure the adapter is powered on.
 
 set -e
 
@@ -48,9 +46,7 @@ sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-
 echo "Installing Node.js ${NODE_VERSION}..."
 cd /tmp
 curl -fsSL "$NODE_DOWNLOAD_URL" -o "${NODE_DISTRO}.tar.xz"
-# Extract directly into /usr/local/ to avoid file-in-use issues.
 sudo tar -C /usr/local/ --strip-components=1 -xf "${NODE_DISTRO}.tar.xz"
-# Recreate symlinks for convenience.
 sudo ln -sf /usr/local/bin/node /usr/bin/node
 sudo ln -sf /usr/local/bin/npm /usr/bin/npm
 
@@ -72,8 +68,6 @@ sudo -u pi npm config set audit false
 
 sudo -u pi npm install --save-dev @babel/core @babel/cli @babel/preset-env
 sudo -u pi npm install --production
-sudo -u pi ./node_modules/.bin/babel src -d dist --copy-files --keep-file-extension
-
 
 # ------------------------------------------------------
 # Babel Configuration File
@@ -91,8 +85,12 @@ cat > "$INSTALL_DIR/.babelrc" << 'EOF'
   "sourceMaps": "inline",
   "retainLines": true
 }
-
 EOF
+
+# ------------------------------------------------------
+# Build Step
+# ------------------------------------------------------
+sudo -u pi ./node_modules/.bin/babel src -d dist --copy-files --keep-file-extension --root-mode upward
 
 # ------------------------------------------------------
 # Bluetooth Initialization Script
@@ -107,7 +105,6 @@ RETRY_DELAY=2
 
 for i in $(seq 1 $MAX_RETRIES); do
     echo "Attempt $i: Initializing Bluetooth..."
-    # Reset and power on the adapter.
     sudo hciconfig hci0 down
     sleep 2
     sudo btmgmt power on
@@ -135,7 +132,6 @@ sudo chmod +x /usr/local/bin/bluetooth-init.sh
 # Systemd Service: Bluetooth Initialization
 # ------------------------------------------------------
 cat <<'EOF' | sudo tee /etc/systemd/system/bluetooth-init.service
-# File: /etc/systemd/system/bluetooth-init.service
 [Unit]
 Description=Bluetooth Initialization
 After=bluetooth.service
@@ -155,7 +151,6 @@ EOF
 # Systemd Service: Gymnasticon
 # ------------------------------------------------------
 cat <<EOF | sudo tee /etc/systemd/system/gymnasticon.service
-# File: /etc/systemd/system/gymnasticon.service
 [Unit]
 Description=Gymnasticon
 After=bluetooth-init.service bluetooth.service network.target
@@ -163,7 +158,6 @@ Requires=bluetooth-init.service bluetooth.service
 
 [Service]
 Type=simple
-# Reinitialize Bluetooth immediately before starting the app.
 ExecStartPre=/usr/local/bin/bluetooth-init.sh
 ExecStart=/usr/bin/node $INSTALL_DIR/dist/app/cli.js
 WorkingDirectory=$INSTALL_DIR
