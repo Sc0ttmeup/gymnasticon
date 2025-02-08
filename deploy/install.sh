@@ -1,4 +1,9 @@
 #!/bin/bash
+# File: install.sh
+# Location: repository root
+# This script installs Gymnasticon on a Raspberry Pi Zero running Node 14
+# It includes fixes for the node-usb build on low‑power devices and ensures Bluetooth LE is enabled.
+
 set -e
 
 # Configuration
@@ -11,6 +16,9 @@ INSTALL_DIR="/opt/gymnasticon"
 export NODE_OPTIONS="--max-old-space-size=512"
 export npm_config_build_from_source=true
 export DEBUG=gym:*
+
+# Force single-threaded make to avoid build issues on low-power hardware
+export MAKEFLAGS=-j1
 
 # System preparation
 echo "Installing system dependencies..."
@@ -37,13 +45,13 @@ git clone --depth 1 https://github.com/4o4R/gymnasticon.git "$INSTALL_DIR"
 cd "$INSTALL_DIR"
 sudo chown -R pi:pi "$INSTALL_DIR"
 
-# NPM setup
+# NPM setup (using the pi user)
 sudo -u pi npm config set unsafe-perm true
 sudo -u pi npm config set legacy-peer-deps true
 sudo -u pi npm config set audit false
 
 # Install dependencies
-echo "Installing dependencies..."
+echo "Installing npm dependencies..."
 sudo -u pi npm install --save-dev @babel/core @babel/cli @babel/preset-env
 sudo -u pi npm install --production
 
@@ -61,23 +69,30 @@ cat > .babelrc << 'EOF'
 }
 EOF
 
-# Build step
+# Build step (transpile source code)
 sudo -u pi ./node_modules/.bin/babel src -d dist --copy-files
 
-# Configure Bluetooth
+# Bluetooth configuration for LE broadcasting
+echo "Configuring Bluetooth for LE broadcasting..."
 sudo usermod -a -G bluetooth pi
-sudo setcap cap_net_raw+eip $(eval readlink -f `which node`)
+sudo setcap cap_net_raw+eip $(eval readlink -f $(which node))
+# Power on Bluetooth, set LE mode, and bring up the interface with advertising enabled
+sudo btmgmt power on
 sudo btmgmt le on
+sudo hciconfig hci0 up
+sudo hciconfig hci0 leadv
 
+# Ensure BlueZ uses LE mode by updating the main config file
 echo "[General]
 ControllerMode = le
-" | sudo tee -a /etc/bluetooth/main.conf
+" | sudo tee /etc/bluetooth/main.conf
 
+# Restart Bluetooth service to load changes
 sudo systemctl enable bluetooth
-sudo systemctl start bluetooth
+sudo systemctl restart bluetooth
 sleep 5
 
-# Create systemd service file
+# Create systemd service file for Gymnasticon
 cat <<EOF | sudo tee /etc/systemd/system/gymnasticon.service
 [Unit]
 Description=Gymnasticon
@@ -103,11 +118,11 @@ SyslogIdentifier=gymnasticon
 WantedBy=multi-user.target
 EOF
 
-# Set correct permissions
+# Set correct permissions for the service file
 sudo chown root:root /etc/systemd/system/gymnasticon.service
 sudo chmod 644 /etc/systemd/system/gymnasticon.service
 
-# Start service
+# Start the Gymnasticon service
 sudo systemctl daemon-reload
 sudo systemctl enable gymnasticon
 sudo systemctl start gymnasticon
