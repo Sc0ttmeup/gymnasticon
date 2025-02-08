@@ -72,7 +72,8 @@ sudo -u pi npm config set audit false
 
 sudo -u pi npm install --save-dev @babel/core @babel/cli @babel/preset-env
 sudo -u pi npm install --production
-sudo -u pi ./node_modules/.bin/babel src -d dist --copy-files
+sudo -u pi ./node_modules/.bin/babel src -d dist --copy-files --keep-file-extension
+
 
 # ------------------------------------------------------
 # Babel Configuration File
@@ -81,10 +82,16 @@ cat > "$INSTALL_DIR/.babelrc" << 'EOF'
 {
   "presets": [
     ["@babel/preset-env", {
-      "targets": { "node": "14" }
+      "targets": {
+        "node": "14"
+      },
+      "modules": "commonjs"
     }]
-  ]
+  ],
+  "sourceMaps": "inline",
+  "retainLines": true
 }
+
 EOF
 
 # ------------------------------------------------------
