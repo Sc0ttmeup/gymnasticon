@@ -1,7 +1,17 @@
 #!/bin/bash
+# File: install.sh
+# Location: Repository root
+# Description: Installs Gymnasticon on a Raspberry Pi Zero with Node.js 14,
+# initializes the Bluetooth adapter (with retries), applies system optimizations,
+# sets up log rotation, and configures systemd services.
+# This version integrates Bluetooth initialization both as a dedicated service and
+# as an ExecStartPre step in the Gymnasticon service to help ensure the adapter is powered on.
+
 set -e
 
+# ------------------------------------------------------
 # Configuration and Environment Variables
+# ------------------------------------------------------
 NODE_VERSION="14.21.3"
 NODE_DISTRO="node-v${NODE_VERSION}-linux-armv6l"
 NODE_DOWNLOAD_URL="https://unofficial-builds.nodejs.org/download/release/v${NODE_VERSION}/${NODE_DISTRO}.tar.xz"
@@ -12,7 +22,9 @@ export npm_config_build_from_source=true
 export DEBUG=gym:*
 export MAKEFLAGS=-j1
 
+# ------------------------------------------------------
 # Pre-installation Checks
+# ------------------------------------------------------
 if ! grep -q "Raspberry Pi" /proc/cpuinfo; then
     echo "This script must be run on a Raspberry Pi"
     exit 1
@@ -23,84 +35,100 @@ if ! hciconfig | grep -q "hci0"; then
     exit 1
 fi
 
+# ------------------------------------------------------
 # System Preparation
+# ------------------------------------------------------
 echo "Installing system dependencies..."
 sudo apt-get update
 sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential curl xz-utils coreutils
 
+# ------------------------------------------------------
 # Node.js Installation
+# ------------------------------------------------------
 echo "Installing Node.js ${NODE_VERSION}..."
 cd /tmp
 curl -fsSL "$NODE_DOWNLOAD_URL" -o "${NODE_DISTRO}.tar.xz"
-tar -xf "${NODE_DISTRO}.tar.xz"
-sudo cp -R "${NODE_DISTRO}"/* /usr/local/
+# Extract directly into /usr/local/ to avoid file-in-use issues.
+sudo tar -C /usr/local/ --strip-components=1 -xf "${NODE_DISTRO}.tar.xz"
+# Recreate symlinks for convenience.
 sudo ln -sf /usr/local/bin/node /usr/bin/node
 sudo ln -sf /usr/local/bin/npm /usr/bin/npm
 
+# ------------------------------------------------------
 # Gymnasticon Installation
+# ------------------------------------------------------
 echo "Installing Gymnasticon..."
 sudo rm -rf "$INSTALL_DIR"
 git clone --depth 1 https://github.com/4o4R/gymnasticon.git "$INSTALL_DIR"
 cd "$INSTALL_DIR"
 sudo chown -R pi:pi "$INSTALL_DIR"
 
-# NPM Configuration
+# ------------------------------------------------------
+# NPM Configuration and Build
+# ------------------------------------------------------
 sudo -u pi npm config set unsafe-perm true
 sudo -u pi npm config set legacy-peer-deps true
 sudo -u pi npm config set audit false
 
-# Install Dependencies and Build
 sudo -u pi npm install --save-dev @babel/core @babel/cli @babel/preset-env
 sudo -u pi npm install --production
 sudo -u pi ./node_modules/.bin/babel src -d dist --copy-files
 
-# Babel Configuration
+# ------------------------------------------------------
+# Babel Configuration File
+# ------------------------------------------------------
 cat > "$INSTALL_DIR/.babelrc" << 'EOF'
 {
   "presets": [
     ["@babel/preset-env", {
-      "targets": {
-        "node": "14"
-      }
+      "targets": { "node": "14" }
     }]
   ]
 }
 EOF
 
+# ------------------------------------------------------
 # Bluetooth Initialization Script
+# ------------------------------------------------------
 cat <<'EOF' | sudo tee /usr/local/bin/bluetooth-init.sh
 #!/bin/bash
+# File: /usr/local/bin/bluetooth-init.sh
+# Description: Initializes Bluetooth LE on hci0 with retry logic.
+
 MAX_RETRIES=5
 RETRY_DELAY=2
 
 for i in $(seq 1 $MAX_RETRIES); do
     echo "Attempt $i: Initializing Bluetooth..."
-    
-    if sudo hciconfig hci0 down && \
-       sleep 2 && \
-       sudo hciconfig hci0 up && \
-       sleep 2 && \
-       sudo btmgmt power on && \
-       sleep 2 && \
-       sudo btmgmt le on && \
-       sleep 2 && \
-       sudo hciconfig hci0 leadv; then
-        echo "Bluetooth initialized successfully"
+    # Reset and power on the adapter.
+    sudo hciconfig hci0 down
+    sleep 2
+    sudo btmgmt power on
+    sleep 2
+    sudo hciconfig hci0 up
+    sleep 2
+    sudo btmgmt le on
+    sleep 2
+    sudo hciconfig hci0 leadv
+    if [ $? -eq 0 ]; then
+        echo "Bluetooth initialized successfully."
         exit 0
     fi
-    
     echo "Attempt $i failed, retrying in $RETRY_DELAY seconds..."
     sleep $RETRY_DELAY
 done
 
-echo "Failed to initialize Bluetooth after $MAX_RETRIES attempts"
+echo "Failed to initialize Bluetooth after $MAX_RETRIES attempts."
 exit 1
 EOF
 
 sudo chmod +x /usr/local/bin/bluetooth-init.sh
 
-# Bluetooth Initialization Service
+# ------------------------------------------------------
+# Systemd Service: Bluetooth Initialization
+# ------------------------------------------------------
 cat <<'EOF' | sudo tee /etc/systemd/system/bluetooth-init.service
+# File: /etc/systemd/system/bluetooth-init.service
 [Unit]
 Description=Bluetooth Initialization
 After=bluetooth.service
@@ -111,16 +139,16 @@ Requires=bluetooth.service
 Type=oneshot
 ExecStart=/usr/local/bin/bluetooth-init.sh
 RemainAfterExit=yes
-Restart=on-failure
-RestartSec=5
-TimeoutStartSec=30
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-# Gymnasticon Service
+# ------------------------------------------------------
+# Systemd Service: Gymnasticon
+# ------------------------------------------------------
 cat <<EOF | sudo tee /etc/systemd/system/gymnasticon.service
+# File: /etc/systemd/system/gymnasticon.service
 [Unit]
 Description=Gymnasticon
 After=bluetooth-init.service bluetooth.service network.target
@@ -128,6 +156,8 @@ Requires=bluetooth-init.service bluetooth.service
 
 [Service]
 Type=simple
+# Reinitialize Bluetooth immediately before starting the app.
+ExecStartPre=/usr/local/bin/bluetooth-init.sh
 ExecStart=/usr/bin/node $INSTALL_DIR/dist/app/cli.js
 WorkingDirectory=$INSTALL_DIR
 Restart=always
@@ -145,12 +175,17 @@ SyslogIdentifier=gymnasticon
 WantedBy=multi-user.target
 EOF
 
-# Bluetooth Configuration
-echo "[General]
+# ------------------------------------------------------
+# Bluetooth Configuration: Set LE Mode
+# ------------------------------------------------------
+cat <<'EOF' | sudo tee /etc/bluetooth/main.conf
+[General]
 ControllerMode = le
-" | sudo tee /etc/bluetooth/main.conf
+EOF
 
-# System Optimizations
+# ------------------------------------------------------
+# System Optimizations and Log Rotation
+# ------------------------------------------------------
 sudo usermod -a -G bluetooth pi
 sudo setcap cap_net_raw+eip "$(readlink -f $(which node))"
 
@@ -158,7 +193,6 @@ cat <<EOF | sudo tee /etc/sysctl.d/99-bluetooth.conf
 kernel.sched_rt_runtime_us = 998000
 EOF
 
-# Log Rotation
 cat <<EOF | sudo tee /etc/logrotate.d/gymnasticon
 /var/log/gymnasticon.log {
     weekly
@@ -169,10 +203,11 @@ cat <<EOF | sudo tee /etc/logrotate.d/gymnasticon
 }
 EOF
 
+# ------------------------------------------------------
 # Service Management
-echo "Configuring and starting services..."
+# ------------------------------------------------------
+echo "Reloading systemd daemon and enabling services..."
 sudo systemctl daemon-reload
-sudo systemctl stop bluetooth gymnasticon || true
 sudo systemctl enable bluetooth bluetooth-init gymnasticon
 sudo systemctl start bluetooth
 sleep 5
@@ -180,14 +215,16 @@ sudo systemctl start bluetooth-init
 sleep 5
 sudo systemctl start gymnasticon
 
-# Verification
-echo "Verifying installation..."
+# ------------------------------------------------------
+# Final Verification
+# ------------------------------------------------------
+echo "Verifying Gymnasticon service..."
 sleep 10
 if systemctl is-active --quiet gymnasticon; then
-    echo "Gymnasticon is running successfully"
+    echo "Gymnasticon is running successfully."
 else
     echo "Gymnasticon failed to start. Check logs with: journalctl -u gymnasticon"
     exit 1
 fi
 
-echo "Installation complete. Check status with: sudo systemctl status gymnasticon"
+echo "Installation complete. Check service status with: sudo systemctl status gymnasticon"
