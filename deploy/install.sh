@@ -73,7 +73,7 @@ sudo -u pi npm install --production
 # Build Step
 # ------------------------------------------------------
 cd "$INSTALL_DIR"
-sudo -u pi ./node_modules/.bin/babel src -d dist --copy-files
+sudo -u pi ./node_modules/.bin/babel src -d dist --copy-files --root-mode upward
 
 # ------------------------------------------------------
 # Bluetooth Initialization Script
