@@ -194,7 +194,7 @@ EOF
 # System Optimizations and Log Rotation
 # ------------------------------------------------------
 sudo usermod -a -G bluetooth pi
-sudo setcap cap_net_raw+eip "$(readlink -f $(which node))"
+sudo setcap cap_net_raw,cap_net_admin+eip "$(readlink -f $(which node))"
 
 cat <<EOF | sudo tee /etc/sysctl.d/99-bluetooth.conf
 kernel.sched_rt_runtime_us = 998000
