@@ -2,8 +2,10 @@
 # File: install.sh
 # Location: repository root
 # Description: Installs Gymnasticon on a Raspberry Pi Zero with Node.js 14,
-# initializes the Bluetooth adapter (with retries), applies system optimizations,
-# sets up log rotation, and configures systemd services.
+#   initializes the Bluetooth adapter (with retries), applies system optimizations,
+#   sets up log rotation, and configures systemd services.
+#   This version uses your .babelrc configuration (by omitting --root-mode upward)
+#   and temporarily increases swap size to help build native modules on low‑memory hardware.
 
 set -e
 
@@ -66,11 +68,24 @@ sudo -u pi npm config set unsafe-perm true
 sudo -u pi npm config set legacy-peer-deps true
 sudo -u pi npm config set audit false
 
+# Install Babel tools and dependencies
 sudo -u pi npm install --save-dev @babel/core @babel/cli @babel/preset-env
+# Increase swap size to help with native module builds (e.g. usb)
+echo "Increasing swap size for build..."
+sudo sed -i 's/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=1024/' /etc/dphys-swapfile
+sudo dphys-swapfile setup
+sudo dphys-swapfile swapon
+
+# Install production dependencies (this is where low memory might otherwise cause a hang)
 sudo -u pi npm install --production
 
+# (Optional: Restore original swap size after build, if desired.)
+# sudo sed -i 's/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=100/' /etc/dphys-swapfile
+# sudo dphys-swapfile setup
+# sudo dphys-swapfile swapon
+
 # ------------------------------------------------------
-# Babel Configuration File
+# Babel Configuration File (.babelrc)
 # ------------------------------------------------------
 cat > "$INSTALL_DIR/.babelrc" << 'EOF'
 {
@@ -91,7 +106,7 @@ EOF
 # Build Step
 # ------------------------------------------------------
 cd "$INSTALL_DIR"
-# Removed --root-mode upward so Babel will use the .babelrc in the current directory.
+# Note: The --root-mode flag has been removed so Babel will use the .babelrc file.
 sudo -u pi ./node_modules/.bin/babel src -d dist --copy-files --keep-file-extension
 
 # ------------------------------------------------------
