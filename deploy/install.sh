@@ -4,6 +4,9 @@
 # Description: Installs Gymnasticon on a Raspberry Pi Zero with Node.js 14,
 # initializes the Bluetooth adapter (with retries), applies system optimizations,
 # sets up log rotation, and configures systemd services.
+#
+# This version uses your .babelrc configuration and a Babel build command that
+# copies and transpiles all JavaScript files while preserving the directory structure.
 
 set -e
 
@@ -70,7 +73,7 @@ sudo -u pi npm install --save-dev @babel/core @babel/cli @babel/preset-env
 sudo -u pi npm install --production
 
 # ------------------------------------------------------
-# Babel Configuration File
+# Babel Configuration File (.babelrc)
 # ------------------------------------------------------
 cat > "$INSTALL_DIR/.babelrc" << 'EOF'
 {
@@ -91,7 +94,8 @@ EOF
 # Build Step
 # ------------------------------------------------------
 cd "$INSTALL_DIR"
-sudo -u pi ./node_modules/.bin/babel src -d dist --copy-files --relative
+# Transpile all .js files from src into dist, copying non-compilable files as well.
+sudo -u pi ./node_modules/.bin/babel src -d dist --copy-files --keep-file-extension --extensions ".js"
 
 # ------------------------------------------------------
 # Bluetooth Initialization Script
