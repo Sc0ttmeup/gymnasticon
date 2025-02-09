@@ -70,10 +70,29 @@ sudo -u pi npm install --save-dev @babel/core @babel/cli @babel/preset-env
 sudo -u pi npm install --production
 
 # ------------------------------------------------------
+# Babel Configuration File
+# ------------------------------------------------------
+cat > "$INSTALL_DIR/.babelrc" << 'EOF'
+{
+  "presets": [
+    ["@babel/preset-env", {
+      "targets": {
+        "node": "14"
+      },
+      "modules": "commonjs"
+    }]
+  ],
+  "sourceMaps": "inline",
+  "retainLines": true
+}
+EOF
+
+# ------------------------------------------------------
 # Build Step
 # ------------------------------------------------------
 cd "$INSTALL_DIR"
-sudo -u pi ./node_modules/.bin/babel src -d dist --copy-files --root-mode upward
+# Removed --root-mode upward so Babel will use the .babelrc in the current directory.
+sudo -u pi ./node_modules/.bin/babel src -d dist --copy-files --keep-file-extension
 
 # ------------------------------------------------------
 # Bluetooth Initialization Script
