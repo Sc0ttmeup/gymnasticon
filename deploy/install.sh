@@ -95,8 +95,8 @@ EOF
 # Build Step
 # ------------------------------------------------------
 cd "$INSTALL_DIR"
-# Transpile all JavaScript files from src into dist while preserving the directory structure.
-sudo -u pi ./node_modules/.bin/babel src --out-dir dist --extensions ".js" --keep-file-extension
+# Transpile all JavaScript files from src into dist, preserving the folder structure.
+sudo -u pi ./node_modules/.bin/babel src -d dist --copy-files --keep-file-extension
 
 # ------------------------------------------------------
 # Bluetooth Initialization Script
