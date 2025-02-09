@@ -5,8 +5,9 @@
 # initializes the Bluetooth adapter (with retries), applies system optimizations,
 # sets up log rotation, and configures systemd services.
 #
-# This version uses your .babelrc configuration and a Babel build command that
-# copies and transpiles all JavaScript files while preserving the directory structure.
+# This version uses your .babelrc configuration and a build step that
+# transpiles JavaScript files from src into dist (preserving the repository structure)
+# so that the entry point (dist/app/cli.js) is available.
 
 set -e
 
@@ -94,8 +95,8 @@ EOF
 # Build Step
 # ------------------------------------------------------
 cd "$INSTALL_DIR"
-# Transpile all .js files from src into dist, copying non-compilable files as well.
-sudo -u pi ./node_modules/.bin/babel src -d dist --copy-files --keep-file-extension --extensions ".js"
+# Transpile all JavaScript files from src into dist while preserving the directory structure.
+sudo -u pi ./node_modules/.bin/babel src --out-dir dist --extensions ".js" --keep-file-extension
 
 # ------------------------------------------------------
 # Bluetooth Initialization Script
