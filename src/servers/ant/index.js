@@ -8,24 +8,16 @@ const DEVICE_NUMBER = 1;
 const PERIOD = 8182; // 8182/32768 ~4hz
 const RF_CHANNEL = 57; // 2457 MHz
 const BROADCAST_INTERVAL = PERIOD / 32768; // seconds
+const SPEED_CADENCE_DEVICE_TYPE = 0x7D; // Standard ANT+ Speed & Cadence sensor type
+const SPEED_CADENCE_CHANNEL = 2; // Separate channel from power meter
+const SPEED_CADENCE_PERIOD = 8070; // 4Hz transmission rate matching BLE
 
 const defaults = {
   deviceId: 11234,
   channel: 1,
 }
 
-/**
- * Handles communication with apps (e.g. Zwift) using the ANT+ Bicycle Power
- * profile (instantaneous cadence and power).
- */
 export class AntServer {
-  /**
-   * Create an AntServer instance.
-   * @param {Ant.USBDevice} antStick - ANT+ device instance
-   * @param {object} options
-   * @param {number} options.channel - ANT+ channel
-   * @param {number} options.deviceId - ANT+ device id
-   */
   constructor(antStick, options = {}) {
     const opts = {...defaults, ...options};
     this.stick = antStick;
@@ -41,11 +33,18 @@ export class AntServer {
     this.broadcastInterval.on('timeout', this.onBroadcastInterval.bind(this));
 
     this._isRunning = false;
+    
+    // Speed/cadence tracking for Keiser
+    this.wheelRevolutions = 0;
+    this.wheelEventTime = 0;
+    this.crankRevolutions = 0;
+    this.crankEventTime = 0;
+    this.lastCrankRevolutionTime = 0;
+    
+    this.speedCadenceBroadcastInterval = new Timer(BROADCAST_INTERVAL);
+    this.speedCadenceBroadcastInterval.on('timeout', this.onSpeedCadenceBroadcast.bind(this));
   }
 
-  /**
-   * Start the ANT+ server (setup channel and start broadcasting).
-   */
   start() {
     const {stick, channel, deviceId} = this;
     const messages = [
@@ -60,6 +59,21 @@ export class AntServer {
       stick.write(m);
     }
     this.broadcastInterval.reset();
+
+    // Speed/cadence channel setup
+    const scMessages = [
+      Ant.Messages.assignChannel(SPEED_CADENCE_CHANNEL, 'transmit'),
+      Ant.Messages.setDevice(SPEED_CADENCE_CHANNEL, deviceId + 1, SPEED_CADENCE_DEVICE_TYPE, 1),
+      Ant.Messages.setFrequency(SPEED_CADENCE_CHANNEL, RF_CHANNEL),
+      Ant.Messages.setPeriod(SPEED_CADENCE_CHANNEL, SPEED_CADENCE_PERIOD),
+      Ant.Messages.openChannel(SPEED_CADENCE_CHANNEL),
+    ];
+
+    for (let m of scMessages) {
+      stick.write(m);
+    }
+
+    this.speedCadenceBroadcastInterval.reset();
     this._isRunning = true;
   }
 
@@ -67,9 +81,6 @@ export class AntServer {
     return this._isRunning;
   }
 
-  /**
-   * Stop the ANT+ server (stop broadcasting and unassign channel).
-   */
   stop() {
     const {stick, channel} = this;
     this.broadcastInterval.cancel();
@@ -80,22 +91,24 @@ export class AntServer {
     for (let m of messages) {
       stick.write(m);
     }
+    this.speedCadenceBroadcastInterval.cancel();
+    
+    // Speed/cadence channel cleanup
+    const scMessages = [
+      Ant.Messages.closeChannel(SPEED_CADENCE_CHANNEL),
+      Ant.Messages.unassignChannel(SPEED_CADENCE_CHANNEL),
+    ];
+    
+    for (let m of scMessages) {
+      stick.write(m);
+    }
   }
 
-  /**
-   * Update instantaneous power and cadence.
-   * @param {object} measurement
-   * @param {number} measurement.power - power in watts
-   * @param {number} measurement.cadence - cadence in rpm
-   */
   updateMeasurement({ power, cadence }) {
     this.power = power;
     this.cadence = cadence;
   }
 
-  /**
-   * Broadcast instantaneous power and cadence.
-   */
   onBroadcastInterval() {
     const {stick, channel, power, cadence} = this;
     this.accumulatedPower += power;
@@ -114,5 +127,32 @@ export class AntServer {
     stick.write(message);
     this.eventCount++;
     this.eventCount &= 0xff;
+  }
+
+  onSpeedCadenceBroadcast() {
+    const {stick, cadence} = this;
+    
+    // Keiser-specific cadence handling
+    const now = Date.now();
+    if (this.lastCrankRevolutionTime) {
+      const timeDiff = now - this.lastCrankRevolutionTime;
+      const crankRevsDiff = (cadence * timeDiff) / 60000;
+      this.crankRevolutions += Math.round(crankRevsDiff);
+      this.crankEventTime = (this.crankEventTime + timeDiff * 1024/1000) & 0xFFFF;
+    }
+    this.lastCrankRevolutionTime = now;
+
+    const data = [
+      SPEED_CADENCE_CHANNEL,
+      0x10,
+      ...Ant.Messages.intToLEHexArray(this.wheelRevolutions, 2),
+      ...Ant.Messages.intToLEHexArray(this.wheelEventTime, 2),
+      this.crankRevolutions & 0xFF,
+      ...Ant.Messages.intToLEHexArray(this.crankEventTime, 2)
+    ];
+
+    const message = Ant.Messages.broadcastData(data);
+    debuglog(`ANT+ SC broadcast (Keiser): cranks=${this.crankRevolutions} time=${this.crankEventTime}`);
+    stick.write(message);
   }
 }
