@@ -46,11 +46,16 @@ if ! hciconfig | grep -q "hci0"; then
 fi
 
 # ------------------------------------------------------
-# System Preparation
+# System Preparation and Swap Setup
 # ------------------------------------------------------
 echo "Installing system dependencies..."
 sudo apt-get update
-sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential curl xz-utils coreutils
+sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential curl xz-utils coreutils dphys-swapfile jq
+
+# Increase swap size temporarily
+echo "Configuring swap space..."
+sudo sed -i 's/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=2048/' /etc/dphys-swapfile
+sudo /etc/init.d/dphys-swapfile restart
 
 # ------------------------------------------------------
 # Node.js Installation
@@ -78,18 +83,59 @@ cd "$INSTALL_DIR"
 sudo -u pi npm config set unsafe-perm true
 sudo -u pi npm config set legacy-peer-deps true
 sudo -u pi npm config set audit false
+sudo -u pi npm config set fund false
+sudo -u pi npm config set update-notifier false
 
-# Install Babel CLI and presets as dev dependencies (if not already in package.json)
-sudo -u pi npm install --save-dev @babel/core @babel/cli @babel/preset-env
+# Install Babel dependencies
+echo "Installing Babel dependencies..."
+if ! sudo -u pi npm install --save-dev @babel/core @babel/cli @babel/preset-env; then
+    echo "Failed to install Babel dependencies"
+    exit 1
+fi
 
-# Install production dependencies
-sudo -u pi npm install --production
+echo "Installing production dependencies in chunks..."
+# Create a temporary package.json chunk file with minimal dependencies
+sudo -u pi node -e "
+    const pkg = require('./package.json');
+    const deps = pkg.dependencies;
+    const chunks = {};
+    let i = 0;
+    for (const [key, value] of Object.entries(deps)) {
+        const chunkIndex = Math.floor(i++ / 5);
+        chunks[chunkIndex] = chunks[chunkIndex] || {};
+        chunks[chunkIndex][key] = value;
+    }
+    require('fs').writeFileSync('chunks.json', JSON.stringify(chunks, null, 2));
+"
+
+# Install dependencies in chunks
+for chunk in $(jq -r 'keys | .[]' chunks.json); do
+    echo "Installing dependency chunk $chunk..."
+    deps=$(jq -r ".[$chunk]" chunks.json)
+    if ! sudo -u pi npm install --no-save $(echo "$deps" | jq -r 'to_entries | map("\(.key)@\(.value)") | .[]'); then
+        echo "Failed to install dependency chunk $chunk"
+        exit 1
+    fi
+    # Clear npm cache after each chunk (run as pi)
+    sudo -u pi npm cache clean --force
+done
+
+# Cleanup temporary files
+rm chunks.json
 
 # ------------------------------------------------------
-# Build Step
+# Build Step with Error Handling
 # ------------------------------------------------------
-# (Uses the existing .babelrc in the repository root)
-sudo -u pi ./node_modules/.bin/babel src -d dist --copy-files --keep-file-extension
+echo "Building project..."
+if ! sudo -u pi ./node_modules/.bin/babel src -d dist --copy-files --keep-file-extension; then
+    echo "Build failed"
+    exit 1
+fi
+
+# Restore original swap size
+echo "Restoring swap configuration..."
+sudo sed -i 's/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=100/' /etc/dphys-swapfile
+sudo /etc/init.d/dphys-swapfile restart
 
 # ------------------------------------------------------
 # Bluetooth Initialization Script
