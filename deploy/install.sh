@@ -59,10 +59,7 @@ sudo -u pi npm config set update-notifier false
 # Install dependencies
 echo "Installing dependencies..."
 sudo -u pi npm install --save-dev @babel/core @babel/cli @babel/preset-env
-
-# Install production dependencies in smaller batches
-echo "Installing production dependencies..."
-sudo -u pi npm install --production --no-optional
+sudo -u pi npm install --production --no-optional --legacy-peer-deps
 
 # Build project
 echo "Building project..."
