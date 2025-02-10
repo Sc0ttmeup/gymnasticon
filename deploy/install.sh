@@ -70,6 +70,12 @@ echo "Restoring swap configuration..."
 sudo sed -i 's/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=100/' /etc/dphys-swapfile
 sudo /etc/init.d/dphys-swapfile restart
 
+# Clean up any existing service files
+echo "Cleaning up any existing service files..."
+sudo rm -f /etc/systemd/system/gymnasticon.service
+sudo rm -rf /etc/systemd/system/gymnasticon.service.d/
+
+
 # Install service files
 echo "Installing service files..."
 sudo cp "${INSTALL_DIR}/deploy/gymnasticon.service" /etc/systemd/system/
