@@ -87,15 +87,5 @@ export const options = {
     describe: '<value> add this value to watts',
     type: 'number',
     default: defaults.powerOffset,
-  },
-  'ant-csc-enabled': {
-    type: 'boolean',
-    default: true,
-    description: 'enable ANT+ Speed & Cadence broadcasting'
-  },
-  'ant-csc-channel': {
-    type: 'number',
-    default: 2,
-    description: 'ANT+ channel for Speed & Cadence broadcast'
   }
 };

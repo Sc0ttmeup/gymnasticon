@@ -42,8 +42,6 @@ export const defaults = {
 
   // ANT+ server options
   antDeviceId: 11234, // random default ANT+ device id
-  antCscEnabled: true, // enable Speed/Cadence broadcasting
-  antCscChannel: 2, // separate channel for CSC
 
   // power adjustment (to compensate for inaccurate power measurements on bike)
   powerScale: 1.0, // multiply power by this
@@ -79,11 +77,7 @@ export class App {
     this.server = new GymnasticonServer(bleno, opts.serverName);
 
     this.antStick = createAntStick(opts);
-    this.antServer = new AntServer(this.antStick, {
-      deviceId: opts.antDeviceId,
-      cscEnabled: opts.antCscEnabled,
-      cscChannel: opts.antCscChannel
-    });
+    this.antServer = new AntServer(this.antStick, {deviceId: opts.antDeviceId});
     this.antStick.on('startup', this.onAntStickStartup.bind(this));
 
     this.pingInterval = new Timer(opts.serverPingInterval);
