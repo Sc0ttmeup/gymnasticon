@@ -3,6 +3,7 @@ Description=Gymnasticon
 After=bluetooth-init.service bluetooth.service network.target
 Requires=bluetooth-init.service bluetooth.service
 
+
 [Service]
 Type=simple
 ExecStart=/usr/bin/node /opt/gymnasticon/dist/app/cli.js
