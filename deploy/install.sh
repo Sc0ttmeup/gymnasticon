@@ -59,7 +59,7 @@ sudo -u pi npm config set update-notifier false
 # Install dependencies
 echo "Installing dependencies..."
 sudo -u pi npm install --save-dev @babel/core @babel/cli @babel/preset-env
-sudo -u pi npm install --production --no-optional --legacy-peer-deps
+sudo -u pi npm install --production --no-optional
 
 # Build project
 echo "Building project..."
@@ -70,83 +70,9 @@ echo "Restoring swap configuration..."
 sudo sed -i 's/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=100/' /etc/dphys-swapfile
 sudo /etc/init.d/dphys-swapfile restart
 
-# Create bluetooth init script
-cat <<'EOF' | sudo tee /usr/local/bin/bluetooth-init.sh
-#!/bin/bash
-SUDO=''
-[ "$EUID" -ne 0 ] && SUDO='sudo'
-
-MAX_RETRIES=5
-RETRY_DELAY=2
-
-for i in $(seq 1 $MAX_RETRIES); do
-    echo "Attempt $i: Initializing Bluetooth..."
-    $SUDO hciconfig hci0 down
-    sleep 2
-    $SUDO btmgmt power on
-    sleep 2
-    $SUDO hciconfig hci0 up
-    sleep 2
-    $SUDO btmgmt le on
-    sleep 2
-    $SUDO hciconfig hci0 leadv
-    if [ $? -eq 0 ]; then
-        echo "Bluetooth initialized successfully."
-        exit 0
-    fi
-    echo "Attempt $i failed, retrying in $RETRY_DELAY seconds..."
-    sleep $RETRY_DELAY
-done
-
-echo "Failed to initialize Bluetooth after $MAX_RETRIES attempts."
-exit 1
-EOF
-
-sudo chmod +x /usr/local/bin/bluetooth-init.sh
-
-# Create systemd services
-cat <<'EOF' | sudo tee /etc/systemd/system/bluetooth-init.service
-[Unit]
-Description=Bluetooth Initialization
-After=bluetooth.service
-Before=gymnasticon.service
-Requires=bluetooth.service
-
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/bluetooth-init.sh
-RemainAfterExit=yes
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-cat <<EOF | sudo tee /etc/systemd/system/gymnasticon.service
-[Unit]
-Description=Gymnasticon
-After=bluetooth-init.service bluetooth.service network.target
-Requires=bluetooth-init.service bluetooth.service
-
-[Service]
-Type=simple
-ExecStart=/usr/bin/node $INSTALL_DIR/dist/app/cli.js
-WorkingDirectory=$INSTALL_DIR
-Restart=always
-RestartSec=10
-User=pi
-Group=pi
-Environment=NODE_ENV=production
-Environment=DEBUG=gym:*
-Environment=NOBLE_HCI_DEVICE_ID=hci0
-Environment=BLENO_HCI_DEVICE_ID=hci0
-Environment=NOBLE_MULTI_ROLE=1
-SyslogIdentifier=gymnasticon
-AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
-NoNewPrivileges=no
-
-[Install]
-WantedBy=multi-user.target
-EOF
+# Install service files
+echo "Installing service files..."
+sudo cp "${INSTALL_DIR}/deploy/gymnasticon.service" /etc/systemd/system/
 
 # Configure Bluetooth
 cat <<'EOF' | sudo tee /etc/bluetooth/main.conf
@@ -176,10 +102,8 @@ EOF
 # Enable and start services
 echo "Starting services..."
 sudo systemctl daemon-reload
-sudo systemctl enable bluetooth bluetooth-init gymnasticon
+sudo systemctl enable bluetooth gymnasticon
 sudo systemctl start bluetooth
-sleep 5
-sudo systemctl start bluetooth-init
 sleep 5
 sudo systemctl start gymnasticon
 

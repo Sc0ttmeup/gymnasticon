@@ -1,30 +1,24 @@
-
 [Unit]
 Description=Gymnasticon
-After=bluetooth.service
-Requires=bluetooth.service
+After=bluetooth-init.service bluetooth.service network.target
+Requires=bluetooth-init.service bluetooth.service
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/gymnasticon
 ExecStart=/usr/bin/node /opt/gymnasticon/dist/app/cli.js
+WorkingDirectory=/opt/gymnasticon
+Restart=always
+RestartSec=10
 User=pi
 Group=pi
-
-# Enhanced capability settings
-CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN
-AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
-NoNewPrivileges=no
-
-# Environment variables
 Environment=NODE_ENV=production
 Environment=DEBUG=gym:*
 Environment=NOBLE_HCI_DEVICE_ID=hci0
 Environment=BLENO_HCI_DEVICE_ID=hci0
 Environment=NOBLE_MULTI_ROLE=1
-
-Restart=always
-RestartSec=10
+SyslogIdentifier=gymnasticon
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
+NoNewPrivileges=no
 
 [Install]
 WantedBy=multi-user.target
