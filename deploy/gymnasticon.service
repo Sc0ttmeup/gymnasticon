@@ -1,7 +1,8 @@
+
 [Unit]
 Description=Gymnasticon
-After=bluetooth-init.service bluetooth.service network.target
-Requires=bluetooth-init.service bluetooth.service
+After=bluetooth.service
+Requires=bluetooth.service
 
 [Service]
 Type=simple
