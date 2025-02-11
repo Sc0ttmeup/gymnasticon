@@ -87,10 +87,13 @@ EOF
 sudo hciconfig hci0 down
 sudo hciconfig hci0 up
 sudo btmgmt le on
+# Configure persistent Bluetooth name
+sudo bluetoothctl system-alias 'Gymnasticon2'
 
-# Set Bluetooth name 
-sudo hciconfig hci0 name 'Gymnasticon2'
-
+# Configure USB permissions for ANT+ stick
+echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="0fcf", ATTRS{idProduct}=="1009", MODE="0666"' | sudo tee /etc/udev/rules.d/99-garmin.rules
+sudo usermod -a -G plugdev pi
+sudo udevadm control --reload-rules
 
 # System optimizations
 sudo usermod -a -G bluetooth pi
