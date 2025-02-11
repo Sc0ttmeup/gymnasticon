@@ -84,6 +84,11 @@ cat <<'EOF' | sudo tee /etc/bluetooth/main.conf
 ControllerMode = le
 EOF
 
+
+# Set Bluetooth name
+sudo bluetoothctl system-alias "Gymnasticon"
+sudo bluetoothctl set-alias "Gymnasticon"
+
 # System optimizations
 sudo usermod -a -G bluetooth pi
 sudo setcap cap_net_raw,cap_net_admin+eip "$(readlink -f $(which node))"
