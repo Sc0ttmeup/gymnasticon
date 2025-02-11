@@ -51,14 +51,13 @@ sudo chown -R pi:pi "$INSTALL_DIR"
 # NPM Configuration
 cd "$INSTALL_DIR"
 sudo -u pi npm config set unsafe-perm true
-sudo -u pi npm config set legacy-peer-deps true  # This might not be needed with newer npm versions
+sudo -u pi npm config set legacy-peer-deps true
 sudo -u pi npm config set audit false
 sudo -u pi npm config set fund false
 sudo -u pi npm config set update-notifier false
 
 # Install dependencies
 echo "Installing dependencies..."
-# Install ALL dependencies (dev + prod) BEFORE building.
 sudo -u pi npm install
 
 # Build project
@@ -74,7 +73,6 @@ sudo /etc/init.d/dphys-swapfile restart
 echo "Cleaning up any existing service files..."
 sudo rm -f /etc/systemd/system/gymnasticon.service
 sudo rm -rf /etc/systemd/system/gymnasticon.service.d/
-
 
 # Install service files
 echo "Installing service files..."
@@ -118,7 +116,7 @@ echo "Verifying Gymnasticon service..."
 sleep 10
 if systemctl is-active --quiet gymnasticon; then
     echo "Gymnasticon is running successfully."
-else:
+else
     echo "Gymnasticon failed to start. Check logs with: journalctl -u gymnasticon"
     exit 1
 fi
