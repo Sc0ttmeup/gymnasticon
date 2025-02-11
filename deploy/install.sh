@@ -88,9 +88,9 @@ sudo hciconfig hci0 down
 sudo hciconfig hci0 up
 sudo btmgmt le on
 
-# Set Bluetooth name (corrected with closing quote)
-sudo btmgmt name "Gymnasticon2"
-sudo btmgmt short-name "Gymnasticon2"
+# Set Bluetooth name 
+sudo hciconfig hci0 name 'Gymnasticon2'
+
 
 # System optimizations
 sudo usermod -a -G bluetooth pi
