@@ -1,5 +1,11 @@
+#!/usr/bin/env node
 // File: ant/index.js
 // Folder: /ant
+//
+// This file implements the ANT+ server for Gymnasticon.
+// It opens two channels – one for power and one for speed/cadence.
+// It simulates wheel data (defaulting to about 1 revolution per second)
+// and uses cadence to compute crank (cadence) data.
 
 import Ant from 'gd-ant-plus';
 import { Timer } from '../../util/timer';
@@ -7,17 +13,18 @@ import { Timer } from '../../util/timer';
 const debuglog = require('debug')('gym:servers:ant');
 
 // ANT+ Constants
-const DEVICE_TYPE = 0x0b;  // Power meter
+const DEVICE_TYPE = 0x0b;            // Power meter device type
 const DEVICE_NUMBER = 1;
-const PERIOD = 8182;  // 8182/32768 ~4Hz
-const RF_CHANNEL = 57;  // 2457 MHz
-const BROADCAST_INTERVAL = PERIOD / 32768;  // seconds
-const SPEED_CADENCE_DEVICE_TYPE = 0x7D;  // Standard ANT+ Speed & Cadence sensor
-const SPEED_CADENCE_CHANNEL = 2;  // Separate channel from power meter
-const SPEED_CADENCE_PERIOD = 8070;  // 4Hz transmission rate matching BLE
+const PERIOD = 8182;               // ~4Hz (8182/32768)
+const RF_CHANNEL = 57;             // 2457 MHz
+const BROADCAST_INTERVAL = PERIOD / 32768;  // seconds (~0.25 s)
+const SPEED_CADENCE_DEVICE_TYPE = 0x7D;  // Standard ANT+ Speed & Cadence sensor type
+const SPEED_CADENCE_CHANNEL = 2;         // Separate channel from power meter
+const SPEED_CADENCE_PERIOD = 8070;         // ~4Hz transmission matching BLE
 
+// Default options
 const defaults = {
-  deviceId: 11236,
+  deviceId: 11236,  // Power channel device ID; speed/cadence uses deviceId+1.
   channel: 1,
 };
 
@@ -36,19 +43,19 @@ export class AntServer {
     this.accumulatedPower = 0;
     this.power = 0;
     
-    // Speed/Cadence metrics
+    // Speed/Cadence metrics (for crank data)
     this.cadence = 0;
-    // For accurate cadence, we now use the crank data provided by the Keiser bike
     this.crankRevolutions = 0;
     this.crankEventTime = 0;
     
-    // (Optional) If you want to simulate wheel data for speed, add these:
-    // this.wheelRevolutions = 0;
-    // this.wheelEventTime = 0;
+    // Simulated wheel data for speed
+    this.simulatedWheelFraction = 0;
+    this.wheelRevolutions = 0;
+    this.wheelEventTime = 0;
     
-    this.lastUpdateTime = 0;
+    this.lastUpdateTime = Date.now();
     
-    // Broadcast timer initialization (both channels broadcast at the same interval)
+    // Broadcast timer: every ~250ms broadcast power and speed/cadence messages.
     this.broadcastInterval = new Timer(BROADCAST_INTERVAL);
     this.broadcastInterval.on('timeout', () => {
       this.onPowerBroadcast();
@@ -77,7 +84,7 @@ export class AntServer {
     // Initialize speed/cadence channel
     const speedCadenceMessages = [
       Ant.Messages.assignChannel(this.speedCadenceChannel, 'transmit'),
-      // Use deviceId + 1 to avoid conflict with the power channel
+      // Use deviceId+1 to avoid conflict with the power channel
       Ant.Messages.setDevice(this.speedCadenceChannel, this.deviceId + 1, SPEED_CADENCE_DEVICE_TYPE, 1),
       Ant.Messages.setFrequency(this.speedCadenceChannel, RF_CHANNEL),
       Ant.Messages.setPeriod(this.speedCadenceChannel, SPEED_CADENCE_PERIOD),
@@ -111,39 +118,35 @@ export class AntServer {
 
   /**
    * Update measurement from the bike.
-   * Expected object properties:
+   * Expected properties:
    *   power: number (watts)
    *   cadence: number (rpm)
-   *   Optional: crank: { revolutions: number, timestamp: number }
-   * The crank object (if provided) contains the actual revolution count and timestamp
-   * from the Keiser bike, similar to what your BLE CSC measurement uses.
+   *
+   * This implementation calculates crank data from cadence if available.
    */
-  updateMeasurement({ power, cadence, crank }) {
+  updateMeasurement({ power, cadence }) {
     const now = Date.now();
     this.power = power;
     this.cadence = cadence;
-    if (crank && typeof crank.revolutions === 'number' && typeof crank.timestamp === 'number') {
-      // Use the provided crank data directly for accurate cadence
-      this.crankRevolutions = crank.revolutions;
-      // Assume crank.timestamp is in seconds; convert to ANT+ ticks (1 tick ≈ 1/1024 sec)
-      this.crankEventTime = Math.round(crank.timestamp * 1024) & 0xFFFF;
-    } else {
-      // Fallback: compute crank data based on cadence and elapsed time
-      const timeDiff = now - this.lastUpdateTime;
-      if (cadence > 0 && timeDiff > 0) {
-        const crankRevsDiff = (cadence * timeDiff) / 60000;
-        this.crankRevolutions += Math.round(crankRevsDiff);
-        this.crankEventTime = (this.crankEventTime + timeDiff * 1024 / 1000) & 0xFFFF;
-      }
+    
+    // Calculate crank data from cadence.
+    const timeDiff = now - this.lastUpdateTime;
+    if (cadence > 0 && timeDiff > 0) {
+      const revsPerMs = cadence / 60000;  // revolutions per millisecond
+      const revsDiff = revsPerMs * timeDiff;
+      // Update cumulative crank revolutions (8-bit wrap-around)
+      this.crankRevolutions = (this.crankRevolutions + Math.round(revsDiff)) & 0xFF;
+      // Update crank event time (1024 ticks per second)
+      this.crankEventTime = (this.crankEventTime + (timeDiff * 1024 / 1000)) & 0xFFFF;
     }
     this.lastUpdateTime = now;
-    debuglog(`Updated measurements - Power: ${power}W, Cadence: ${cadence}rpm, Crank: ${crank ? JSON.stringify(crank) : 'calculated'}`);
+    debuglog(`Updated measurements - Power: ${power}W, Cadence: ${cadence}rpm, Cranks: ${this.crankRevolutions}`);
   }
 
   onPowerBroadcast() {
     const data = [
       this.powerChannel,
-      0x10,               // Data page for power
+      0x10,               // Data page for power-only message
       this.eventCount,
       0xff,               // Pedal power not used
       this.cadence,
@@ -155,28 +158,39 @@ export class AntServer {
     debuglog(`ANT+ power broadcast: power=${this.power}W, cadence=${this.cadence}rpm, accumulated=${this.accumulatedPower}`);
     this.stick.write(message);
     
-    this.accumulatedPower = (this.accumulatedPower + this.power) & 0xffff;
-    this.eventCount = (this.eventCount + 1) & 0xff;
+    this.accumulatedPower = (this.accumulatedPower + this.power) & 0xFFFF;
+    this.eventCount = (this.eventCount + 1) & 0xFF;
   }
 
   onSpeedCadenceBroadcast() {
-    // Build payload as per ANT+ Bike Speed/Cadence spec:
+    // Simulate wheel data: assume 1 revolution per second.
+    // With a broadcast interval of ~250ms, add 0.25 revolution per broadcast.
+    this.simulatedWheelFraction += 0.25;
+    if (this.simulatedWheelFraction >= 1) {
+      const revsToAdd = Math.floor(this.simulatedWheelFraction);
+      this.wheelRevolutions += revsToAdd;
+      this.simulatedWheelFraction -= revsToAdd;
+    }
+    // Increment wheel event time by ~256 ticks per 250ms update.
+    this.wheelEventTime = (this.wheelEventTime + 256) & 0xFFFF;
+    
+    // Build payload per ANT+ CSC specification:
     // Byte 0: Data page (0x10)
-    // Bytes 1-2: Cumulative Wheel Revolutions (set to 0 if not available)
-    // Bytes 3-4: Last Wheel Event Time (set to 0 if not available)
-    // Byte 5: Cumulative Crank Revolutions (8-bit)
-    // Bytes 6-7: Last Crank Event Time (16-bit little-endian)
+    // Bytes 1-2: Cumulative Wheel Revolutions (uint16, little-endian)
+    // Bytes 3-4: Last Wheel Event Time (uint16, little-endian)
+    // Byte 5: Cumulative Crank Revolutions (uint8)
+    // Bytes 6-7: Last Crank Event Time (uint16, little-endian)
     const data = [
       this.speedCadenceChannel,
       0x10,
-      ...Ant.Messages.intToLEHexArray(0, 2), // Wheel Revolutions (0 if not simulated)
-      ...Ant.Messages.intToLEHexArray(0, 2), // Wheel Event Time (0 if not simulated)
-      this.crankRevolutions & 0xFF,          // Cumulative Crank Revolutions (8-bit)
-      ...Ant.Messages.intToLEHexArray(this.crankEventTime, 2)  // Last Crank Event Time (16-bit LE)
+      ...Ant.Messages.intToLEHexArray(this.wheelRevolutions, 2),
+      ...Ant.Messages.intToLEHexArray(this.wheelEventTime, 2),
+      this.crankRevolutions & 0xFF,
+      ...Ant.Messages.intToLEHexArray(this.crankEventTime, 2)
     ];
     
     const message = Ant.Messages.broadcastData(data);
-    debuglog(`ANT+ SC broadcast: cranks=${this.crankRevolutions}, eventTime=${this.crankEventTime}`);
+    debuglog(`ANT+ SC broadcast: WheelRevs=${this.wheelRevolutions}, WheelTime=${this.wheelEventTime}, CrankRevs=${this.crankRevolutions}, EventTime=${this.crankEventTime}`);
     this.stick.write(message);
   }
 }

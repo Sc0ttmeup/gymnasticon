@@ -84,10 +84,13 @@ cat <<'EOF' | sudo tee /etc/bluetooth/main.conf
 ControllerMode = le
 EOF
 
+sudo hciconfig hci0 down
+sudo hciconfig hci0 up
+sudo btmgmt le on
 
-# Set Bluetooth name
-sudo bluetoothctl system-alias "Gymnasticon2"
-sudo bluetoothctl set-alias "Gymnasticon2"
+# Set Bluetooth name (corrected with closing quote)
+sudo btmgmt name "Gymnasticon2"
+sudo btmgmt short-name "Gymnasticon2"
 
 # System optimizations
 sudo usermod -a -G bluetooth pi
@@ -115,6 +118,11 @@ sudo systemctl enable bluetooth gymnasticon
 sudo systemctl start bluetooth
 sleep 5
 sudo systemctl start gymnasticon
+
+if ! systemctl is-active --quiet gymnasticon; then
+    journalctl -u gymnasticon -n 50
+    exit 1
+fi
 
 # Verify installation
 echo "Verifying Gymnasticon service..."
