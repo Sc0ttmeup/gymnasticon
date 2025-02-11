@@ -86,8 +86,8 @@ EOF
 
 
 # Set Bluetooth name
-sudo bluetoothctl system-alias "Gymnasticon"
-sudo bluetoothctl set-alias "Gymnasticon"
+sudo bluetoothctl system-alias "Gymnasticon2"
+sudo bluetoothctl set-alias "Gymnasticon2"
 
 # System optimizations
 sudo usermod -a -G bluetooth pi

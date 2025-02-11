@@ -17,7 +17,7 @@ const SPEED_CADENCE_CHANNEL = 2;  // Separate channel from power meter
 const SPEED_CADENCE_PERIOD = 8070;  // 4Hz transmission rate matching BLE
 
 const defaults = {
-  deviceId: 11234,
+  deviceId: 11236,
   channel: 1,
 };
 
