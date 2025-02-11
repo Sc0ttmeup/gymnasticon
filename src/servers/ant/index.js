@@ -70,42 +70,44 @@ const defaults = {
     get isRunning() {
       return this._isRunning;
     }
-
-    start() {
-      debuglog(`ANT+ server starting [deviceId=${this.deviceId}]`);
+      async start() {
+        debuglog(`ANT+ server starting [deviceId=${this.deviceId}]`);
     
-      // First set the network key before any channel configuration
-      const networkKeyMessage = Ant.Messages.setNetworkKey(0, ANT_PLUS_NETWORK_KEY);
-      this.stick.write(networkKeyMessage);
+        // Set network key first
+        const networkKeyMessage = Ant.Messages.setNetworkKey(0, ANT_PLUS_NETWORK_KEY);
+        this.stick.write(networkKeyMessage);
+      
+        // Wait for network key acknowledgment
+        await new Promise(resolve => setTimeout(resolve, 500));
+      
+        // Then configure channels
+        const powerMessages = [
+          Ant.Messages.assignChannel(this.powerChannel, 'transmit'),
+          Ant.Messages.setDevice(this.powerChannel, this.deviceId, DEVICE_TYPE, DEVICE_NUMBER),
+          Ant.Messages.setFrequency(this.powerChannel, RF_CHANNEL),
+          Ant.Messages.setPeriod(this.powerChannel, PERIOD),
+          Ant.Messages.openChannel(this.powerChannel)
+        ];
     
-      // Initialize power channel
-      const powerMessages = [
-        Ant.Messages.assignChannel(this.powerChannel, 'transmit'),
-        Ant.Messages.setDevice(this.powerChannel, this.deviceId, DEVICE_TYPE, DEVICE_NUMBER),
-        Ant.Messages.setFrequency(this.powerChannel, RF_CHANNEL),
-        Ant.Messages.setPeriod(this.powerChannel, PERIOD),
-        Ant.Messages.openChannel(this.powerChannel)
-      ];
+        // Initialize speed/cadence channel
+        const speedCadenceMessages = [
+          Ant.Messages.assignChannel(this.speedCadenceChannel, 'transmit'),
+          // Use deviceId+1 to avoid conflict with the power channel
+          Ant.Messages.setDevice(this.speedCadenceChannel, this.deviceId + 1, SPEED_CADENCE_DEVICE_TYPE, 1),
+          Ant.Messages.setFrequency(this.speedCadenceChannel, RF_CHANNEL),
+          Ant.Messages.setPeriod(this.speedCadenceChannel, SPEED_CADENCE_PERIOD),
+          Ant.Messages.openChannel(this.speedCadenceChannel)
+        ];
     
-      // Initialize speed/cadence channel
-      const speedCadenceMessages = [
-        Ant.Messages.assignChannel(this.speedCadenceChannel, 'transmit'),
-        // Use deviceId+1 to avoid conflict with the power channel
-        Ant.Messages.setDevice(this.speedCadenceChannel, this.deviceId + 1, SPEED_CADENCE_DEVICE_TYPE, 1),
-        Ant.Messages.setFrequency(this.speedCadenceChannel, RF_CHANNEL),
-        Ant.Messages.setPeriod(this.speedCadenceChannel, SPEED_CADENCE_PERIOD),
-        Ant.Messages.openChannel(this.speedCadenceChannel)
-      ];
+        // Send all initialization messages
+        [...powerMessages, ...speedCadenceMessages].forEach(msg => {
+          debuglog(`Sending ANT+ message: ${msg.toString('hex')}`);
+          this.stick.write(msg);
+        });
     
-      // Send all initialization messages
-      [...powerMessages, ...speedCadenceMessages].forEach(msg => {
-        debuglog(`Sending ANT+ message: ${msg.toString('hex')}`);
-        this.stick.write(msg);
-      });
-    
-      this.broadcastInterval.reset();
-      this._isRunning = true;
-      debuglog('ANT+ server started successfully');
+        this.broadcastInterval.reset();
+        this._isRunning = true;
+        debuglog('ANT+ server started successfully');
     }
   stop() {
     debuglog('Stopping ANT+ server');

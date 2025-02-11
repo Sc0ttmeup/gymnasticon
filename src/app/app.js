@@ -95,32 +95,15 @@ export class App {
     this.onExit = this.onExit.bind(this);
   }
 
-  async run() {
-    try {
-      process.on('SIGINT', this.onSigInt);
-      process.on('exit', this.onExit);
-
-      const [state] = await once(noble, 'stateChange');
-      if (state !== 'poweredOn')
-        throw new Error(`Bluetooth adapter state: ${state}`);
-
-      this.logger.log('connecting to bike...');
-      this.bike = await createBikeClient(this.opts, noble);
-      this.bike.on('disconnect', this.onBikeDisconnect.bind(this));
-      this.bike.on('stats', this.onBikeStats.bind(this));
-      this.connectTimeout.reset();
-      await this.bike.connect();
-      this.connectTimeout.cancel();
-      this.logger.log(`bike connected ${this.bike.address}`);
-      this.server.start();
-      this.startAnt();
-      this.pingInterval.reset();
-      this.statsTimeout.reset();
-    } catch (e) {
-      this.logger.error(e);
-      process.exit(1);
-    }
-  }
+      async run() {
+        const [state] = await once(noble, 'stateChange');
+        if (state !== 'poweredOn') {
+          throw new Error(`Bluetooth adapter state: ${state}`);
+        }
+    
+        this.server.start();
+        this.startAnt();
+      }
 
   onPedalStroke(timestamp) {
     this.pingInterval.reset();
@@ -170,11 +153,9 @@ export class App {
     }
     if (!this.antStick.open()) {
       this.logger.error('failed to open ANT+ stick');
+      return;
     }
-  }
-
-  onAntStickStartup() {
-    this.logger.log('ANT+ stick opened');
+    this.logger.log('ANT+ stick opened successfully');
     this.antServer.start();
   }
 
