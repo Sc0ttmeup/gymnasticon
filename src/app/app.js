@@ -37,7 +37,7 @@ export const defaults = {
 
   // server options
   serverAdapter: 'hci0', // adapter for receiving connections from apps
-  serverName: 'Gymnasticon', // how the Gymnasticon will appear to apps
+  serverName: 'Gymnasticon2', // how the Gymnasticon will appear to apps
   serverPingInterval: 1, // send a power measurement update at least this often
 
   // ANT+ server options
