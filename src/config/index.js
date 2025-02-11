@@ -7,6 +7,15 @@ export class ConfigManager {
     this.config = {};
   }
 
+  async createDefault() {
+    this.config = {
+      'bike': 'M3',
+      'power-scale': 1.0,
+      'server-name': 'Gymnasticon2',  // Default server name
+    };
+    await this.save();
+  }
+
   async load() {
     try {
       const content = await fs.readFile(this.configPath, 'utf8');
@@ -34,4 +43,5 @@ export class ConfigManager {
       }
     }
   }
+
 }

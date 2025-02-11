@@ -2,7 +2,7 @@ import {CyclingPowerService} from './services/cycling-power'
 import {CyclingSpeedAndCadenceService} from './services/cycling-speed-and-cadence'
 import {BleServer} from '../../util/ble-server'
 
-export const DEFAULT_NAME = 'Gymnasticon';
+export const DEFAULT_NAME = 'Gymnasticon2';
 
 /**
  * Handles communication with apps (e.g. Zwift) using the standard Bluetooth

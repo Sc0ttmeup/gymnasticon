@@ -1,14 +1,17 @@
-// File: util/timer.js
+// File: src/util/timer.js
+// Folder: src/util
+//
 // Drift-compensated Timer that emits a 'timeout' event after a specified interval.
 // This version adjusts for drift by calculating the expected expiration time 
-// and then compensating in the delay for subsequent timeouts.
+// and, if the callback is delayed past the expected time, “catches up” by 
+// incrementing the expected expiration until it’s in the future.
 
 import { EventEmitter } from 'events';
 
 export class Timer extends EventEmitter {
   /**
    * Create a Timer instance.
-   * @param {number} interval - time until expires in seconds.
+   * @param {number} interval - time until expiration in seconds.
    * @param {object} options
    * @param {boolean} [options.repeats=true] - restart the timer each time it expires.
    */
@@ -17,12 +20,12 @@ export class Timer extends EventEmitter {
     this._interval = interval; // in seconds
     this._repeats = repeats;
     this._timeout = null;
-    this._expected = 0; // expected timestamp (in ms) for next expiration
+    this._expected = 0; // expected timestamp (ms) for next expiration
     this.onExpire = this.onExpire.bind(this);
   }
 
   /**
-   * Get the current interval (seconds).
+   * Get the current interval in seconds.
    */
   get interval() {
     return this._interval;
@@ -54,14 +57,20 @@ export class Timer extends EventEmitter {
    */
   onExpire() {
     const now = Date.now();
-    // Calculate drift: the difference between now and the expected expiration.
+    // Calculate drift: difference between current time and expected time.
     const drift = now - this._expected;
     this.emit('timeout', this._interval);
+    
     if (this._repeats) {
-      // Increment expected expiration by the interval.
+      // Advance the expected time by one interval.
       this._expected += this._interval * 1000;
-      // Calculate the next delay, compensating for drift.
-      const nextDelay = Math.max(0, this._interval * 1000 - drift);
+      // If we're already past the expected time (i.e. drift > interval),
+      // repeatedly add the interval until _expected is in the future.
+      while (Date.now() > this._expected) {
+        this._expected += this._interval * 1000;
+      }
+      // Calculate delay until next expiration.
+      const nextDelay = Math.max(0, this._expected - Date.now());
       this._timeout = setTimeout(this.onExpire, nextDelay);
     }
   }

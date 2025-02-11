@@ -1,5 +1,5 @@
 [Unit]
-Description=Gymnasticon
+Description=Gymnasticon2
 After=bluetooth-init.service bluetooth.service network.target
 Requires=bluetooth-init.service bluetooth.service
 
