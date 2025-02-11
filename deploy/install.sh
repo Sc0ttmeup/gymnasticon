@@ -51,19 +51,19 @@ sudo chown -R pi:pi "$INSTALL_DIR"
 # NPM Configuration
 cd "$INSTALL_DIR"
 sudo -u pi npm config set unsafe-perm true
-sudo -u pi npm config set legacy-peer-deps true
+sudo -u pi npm config set legacy-peer-deps true  # This might not be needed with newer npm versions
 sudo -u pi npm config set audit false
 sudo -u pi npm config set fund false
 sudo -u pi npm config set update-notifier false
 
 # Install dependencies
 echo "Installing dependencies..."
-sudo -u pi npm install --save-dev @babel/core @babel/cli @babel/preset-env
-sudo -u pi npm install --production --no-optional
+# Install ALL dependencies (dev + prod) BEFORE building.
+sudo -u pi npm install
 
 # Build project
 echo "Building project..."
-sudo -u pi ./node_modules/.bin/babel src -d dist --copy-files --keep-file-extension
+sudo -u pi npm run build
 
 # Restore swap
 echo "Restoring swap configuration..."
@@ -118,7 +118,7 @@ echo "Verifying Gymnasticon service..."
 sleep 10
 if systemctl is-active --quiet gymnasticon; then
     echo "Gymnasticon is running successfully."
-else
+else:
     echo "Gymnasticon failed to start. Check logs with: journalctl -u gymnasticon"
     exit 1
 fi

@@ -6,7 +6,7 @@ Requires=bluetooth-init.service bluetooth.service
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/node /opt/gymnasticon/dist/app/cli.js
+ExecStart=/usr/bin/node /opt/gymnasticon/lib/app/cli.js
 WorkingDirectory=/opt/gymnasticon
 Restart=always
 RestartSec=10
