@@ -34,3 +34,14 @@ export class GymnasticonServer extends BleServer {
     }
   }
 }
+
+// Add error handling to start method
+async start() {
+  try {
+    await super.start();
+    debuglog('BLE server started successfully');
+  } catch (error) {
+    debuglog(`BLE server failed to start: ${error.message}`);
+    throw error;
+  }
+}
