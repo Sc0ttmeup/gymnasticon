@@ -1,4 +1,6 @@
 #!/bin/bash
+# File: install.sh
+# This script installs Gymnasticon on a Raspberry Pi Zero
 set -e
 
 # Configuration
@@ -7,7 +9,7 @@ NODE_DISTRO="node-v${NODE_VERSION}-linux-armv6l"
 NODE_DOWNLOAD_URL="https://unofficial-builds.nodejs.org/download/release/v${NODE_VERSION}/${NODE_DISTRO}.tar.xz"
 INSTALL_DIR="/opt/gymnasticon"
 
-# Ensure the script is not run from inside the installation directory
+# Ensure we're not running from the installation directory.
 if [ "$PWD" = "$INSTALL_DIR" ]; then
     echo "Current directory is $INSTALL_DIR. Changing to home directory to avoid conflicts..."
     cd ~
@@ -18,6 +20,10 @@ export NODE_OPTIONS="--max-old-space-size=512"
 export npm_config_build_from_source=true
 export DEBUG=gym:*
 export MAKEFLAGS=-j1
+
+# Instruct npm to ignore engine requirements
+sudo -u pi npm config set engine-strict false
+sudo -u pi npm config set ignore-engines true
 
 # System checks and dependencies
 if ! grep -q "Raspberry Pi" /proc/cpuinfo; then
@@ -52,7 +58,13 @@ sudo /etc/init.d/dphys-swapfile restart
 # Install Node.js
 echo "Installing Node.js ${NODE_VERSION}..."
 cd /tmp
-curl -fsSL "$NODE_DOWNLOAD_URL" -o "${NODE_DISTRO}.tar.xz"
+curl --retry 3 -fsSL "$NODE_DOWNLOAD_URL" -o "${NODE_DISTRO}.tar.xz"
+# Verify that the file is not unexpectedly small (example threshold: 1MB)
+FILESIZE=$(stat -c%s "${NODE_DISTRO}.tar.xz")
+if [ $FILESIZE -lt 1000000 ]; then
+  echo "Downloaded Node tarball is too small ($FILESIZE bytes). Exiting."
+  exit 1
+fi
 sudo tar -C /usr/local/ --strip-components=1 -xf "${NODE_DISTRO}.tar.xz"
 sudo ln -sf /usr/local/bin/node /usr/bin/node
 sudo ln -sf /usr/local/bin/npm /usr/bin/npm
