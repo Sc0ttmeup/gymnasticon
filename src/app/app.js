@@ -1,19 +1,22 @@
+// File: lib/app/app.js
+// Folder: /opt/gymnasticon/lib/app/
+// Description: Main application class for Gymnasticon
+
 import noble from '@abandonware/noble';
 import bleno from '@abandonware/bleno';
+import { once } from 'events';
 
-import {once} from 'events';
-
-import {GymnasticonServer} from '../servers/ble';
-import {AntServer} from '../servers/ant';
-import {createBikeClient, getBikeTypes} from '../bikes';
-import {Simulation} from './simulation';
-import {Timer} from '../util/timer';
-import {Logger} from '../util/logger';
-import {createAntStick} from '../util/ant-stick';
+import { GymnasticonServer } from '../servers/ble';
+import { AntServer } from '../servers/ant';
+import { createBikeClient, getBikeTypes } from '../bikes';
+import { Simulation } from './simulation';
+import { Timer } from '../util/timer';
+import { Logger } from '../util/logger';
+import { createAntStick } from '../util/ant-stick';
 
 const debuglog = require('debug')('gym:app:app');
 
-export {getBikeTypes};
+export { getBikeTypes };
 
 export const defaults = {
   // bike options
@@ -59,70 +62,76 @@ export class App {
   /**
    * Create an App instance.
    */
-    constructor(options = {}) {
-      const opts = {...defaults, ...options};
+  constructor(options = {}) {
+    // Bind all callback methods first to ensure they are defined
+    this.onAntStickStartup = this.onAntStickStartup.bind(this);
+    this.onSigInt = this.onSigInt.bind(this);
+    this.onExit = this.onExit.bind(this);
+    this.onPingInterval = this.onPingInterval.bind(this);
+    this.onBikeStatsTimeout = this.onBikeStatsTimeout.bind(this);
+    this.onBikeConnectTimeout = this.onBikeConnectTimeout.bind(this);
+    this.onPedalStroke = this.onPedalStroke.bind(this);
 
-      this.power = 0;
-      this.crank = {revolutions: 0, timestamp: -Infinity};
+    // Merge options with defaults.
+    const opts = { ...defaults, ...options };
 
-      process.env['NOBLE_HCI_DEVICE_ID'] = opts.bikeAdapter;
-      process.env['BLENO_HCI_DEVICE_ID'] = opts.serverAdapter;
-      if (opts.bikeAdapter === opts.serverAdapter) {
-        process.env['NOBLE_MULTI_ROLE'] = '1'
-      }
+    this.power = 0;
+    this.crank = { revolutions: 0, timestamp: -Infinity };
 
-      this.opts = opts;
-      this.logger = new Logger();
-      this.simulation = new Simulation();
-      this.server = new GymnasticonServer(bleno, opts.serverName);
-
-      this.antStick = createAntStick(opts);
-      this.antServer = new AntServer(this.antStick, {deviceId: opts.antDeviceId});
-      this.antStick.on('startup', this.onAntStickStartup.bind(this));
-
-      this.pingInterval = new Timer(opts.serverPingInterval);
-      this.statsTimeout = new Timer(opts.bikeStatsTimeout, {repeats: false});
-      this.connectTimeout = new Timer(opts.bikeConnectTimeout, {repeats: false});
-      this.powerScale = opts.powerScale;
-      this.powerOffset = opts.powerOffset;
-
-      this.pingInterval.on('timeout', this.onPingInterval.bind(this));
-      this.statsTimeout.on('timeout', this.onBikeStatsTimeout.bind(this));
-      this.connectTimeout.on('timeout', this.onBikeConnectTimeout.bind(this));
-      this.simulation.on('pedal', this.onPedalStroke.bind(this));
-
-      // Make sure these methods exist in the class
-      this.onAntStickStartup = this.onAntStickStartup.bind(this);
-      this.onSigInt = this.onSigInt.bind(this);
-      this.onExit = this.onExit.bind(this);
+    process.env['NOBLE_HCI_DEVICE_ID'] = opts.bikeAdapter;
+    process.env['BLENO_HCI_DEVICE_ID'] = opts.serverAdapter;
+    if (opts.bikeAdapter === opts.serverAdapter) {
+      process.env['NOBLE_MULTI_ROLE'] = '1';
     }
 
-    onAntStickStartup() {
-      this.logger.log('ANT+ stick started');
-      // Add any necessary startup logic
+    this.opts = opts;
+    this.logger = new Logger();
+    this.simulation = new Simulation();
+    this.server = new GymnasticonServer(bleno, opts.serverName);
+
+    this.antStick = createAntStick(opts);
+    this.antServer = new AntServer(this.antStick, { deviceId: opts.antDeviceId });
+    // Register the already bound method
+    this.antStick.on('startup', this.onAntStickStartup);
+
+    this.pingInterval = new Timer(opts.serverPingInterval);
+    this.statsTimeout = new Timer(opts.bikeStatsTimeout, { repeats: false });
+    this.connectTimeout = new Timer(opts.bikeConnectTimeout, { repeats: false });
+    this.powerScale = opts.powerScale;
+    this.powerOffset = opts.powerOffset;
+
+    this.pingInterval.on('timeout', this.onPingInterval);
+    this.statsTimeout.on('timeout', this.onBikeStatsTimeout);
+    this.connectTimeout.on('timeout', this.onBikeConnectTimeout);
+    this.simulation.on('pedal', this.onPedalStroke);
+  }
+
+  onAntStickStartup() {
+    this.logger.log('ANT+ stick started');
+    // Add any necessary startup logic here
+  }
+
+  async run() {
+    const [state] = await once(noble, 'stateChange');
+    if (state !== 'poweredOn') {
+      throw new Error(`Bluetooth adapter state: ${state}`);
     }
-      async run() {
-        const [state] = await once(noble, 'stateChange');
-        if (state !== 'poweredOn') {
-          throw new Error(`Bluetooth adapter state: ${state}`);
-        }
-    
-        this.server.start();
-        this.startAnt();
-      }
+    this.server.start();
+    this.startAnt();
+  }
 
   onPedalStroke(timestamp) {
     this.pingInterval.reset();
     this.crank.timestamp = timestamp;
     this.crank.revolutions++;
-    let {power, crank} = this;
+    let { power, crank } = this;
     this.logger.log(`pedal stroke [timestamp=${timestamp} revolutions=${crank.revolutions} power=${power}W]`);
     this.server.updateMeasurement({ power, crank });
   }
 
   onPingInterval() {
     debuglog(`pinging app since no stats or pedal strokes for ${this.pingInterval.interval}s`);
-    let {power, crank} = this;
+    let { power, crank } = this;
     this.server.updateMeasurement({ power, crank });
   }
 
@@ -132,7 +141,7 @@ export class App {
     this.statsTimeout.reset();
     this.power = power;
     this.simulation.cadence = cadence;
-    let {crank} = this;
+    let { crank } = this;
     this.server.updateMeasurement({ power, crank });
     this.antServer.updateMeasurement({ power, cadence });
   }
@@ -172,7 +181,7 @@ export class App {
 
   onSigInt() {
     const listeners = process.listeners('SIGINT');
-    if (listeners[listeners.length-1] === this.onSigInt) {
+    if (listeners[listeners.length - 1] === this.onSigInt) {
       process.exit(0);
     }
   }
