@@ -28,14 +28,8 @@ export class GymnasticonServer extends BleServer {
    * @param {number} measurement.crank.revolutions - revolution count at last crank event.
    * @param {number} measurement.crank.timestamp - timestamp at last crank event.
    */
-  updateMeasurement(measurement) {
-    for (let s of this.services) {
-      s.updateMeasurement(measurement)
-    }
-  }
-}
 
-// Add error handling to start method
+  // Add error handling to start method
 async start() {
   try {
     await super.start();
@@ -45,3 +39,11 @@ async start() {
     throw error;
   }
 }
+  updateMeasurement(measurement) {
+    for (let s of this.services) {
+      s.updateMeasurement(measurement)
+    }
+  }
+}
+
+
