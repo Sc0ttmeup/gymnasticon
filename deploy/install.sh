@@ -13,7 +13,7 @@ export npm_config_build_from_source=true
 export DEBUG=gym:*
 export MAKEFLAGS=-j1
 
-# System checks
+# System checks and dependencies
 if ! grep -q "Raspberry Pi" /proc/cpuinfo; then
     echo "This script must be run on a Raspberry Pi"
     exit 1
@@ -29,16 +29,16 @@ echo "Installing system dependencies..."
 sudo apt-get update
 sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential curl xz-utils coreutils dphys-swapfile
 
-# Force stop and cleanup existing installation
+# Clean existing installation
 echo "Cleaning up any existing installation..."
 sudo systemctl stop gymnasticon || true
 sudo systemctl disable gymnasticon || true
 sudo rm -f /var/log/gymnasticon.log
-sudo rm -rf /opt/gymnasticon
+sudo rm -rf "$INSTALL_DIR"
 sudo rm -f /etc/systemd/system/gymnasticon.service
 sudo systemctl daemon-reload
 
-# Increase swap
+# Increase swap for build
 echo "Configuring swap space..."
 sudo sed -i 's/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=2048/' /etc/dphys-swapfile
 sudo /etc/init.d/dphys-swapfile restart
@@ -51,39 +51,40 @@ sudo tar -C /usr/local/ --strip-components=1 -xf "${NODE_DISTRO}.tar.xz"
 sudo ln -sf /usr/local/bin/node /usr/bin/node
 sudo ln -sf /usr/local/bin/npm /usr/bin/npm
 
-# Install Gymnasticon
+# Clone and prepare Gymnasticon
 echo "Installing Gymnasticon..."
-sudo rm -rf "$INSTALL_DIR"
 sudo git clone --depth 1 https://github.com/4o4R/gymnasticon.git "$INSTALL_DIR"
 sudo chown -R pi:pi "$INSTALL_DIR"
 
-# NPM Configuration
+# Build process
 cd "$INSTALL_DIR"
+echo "Setting up NPM configuration..."
 sudo -u pi npm config set unsafe-perm true
 sudo -u pi npm config set legacy-peer-deps true
 sudo -u pi npm config set audit false
 sudo -u pi npm config set fund false
 sudo -u pi npm config set update-notifier false
 
-# Install dependencies
 echo "Installing dependencies..."
-sudo -u pi npm install
+sudo rm -rf node_modules
+sudo -u pi npm cache clean --force
+sudo -u pi npm install --no-optional --unsafe-perm
 
-# Build project
 echo "Building project..."
 sudo -u pi npm run build
+
+# Verify build success
+if [ ! -f "$INSTALL_DIR/lib/app/cli.js" ]; then
+    echo "Build failed - cli.js not found"
+    exit 1
+fi
 
 # Restore swap
 echo "Restoring swap configuration..."
 sudo sed -i 's/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=100/' /etc/dphys-swapfile
 sudo /etc/init.d/dphys-swapfile restart
 
-# Clean up any existing service files
-echo "Cleaning up any existing service files..."
-sudo rm -f /etc/systemd/system/gymnasticon.service
-sudo rm -rf /etc/systemd/system/gymnasticon.service.d/
-
-# Install service files
+# Service setup
 echo "Installing service files..."
 sudo cp "${INSTALL_DIR}/deploy/gymnasticon.service" /etc/systemd/system/
 
@@ -96,18 +97,15 @@ EOF
 sudo hciconfig hci0 down
 sudo hciconfig hci0 up
 sudo btmgmt le on
-# Configure persistent Bluetooth name
 sudo bluetoothctl system-alias 'Gymnasticon2'
 
-# Configure USB permissions for ANT+ stick
+# Configure USB and permissions
 echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="0fcf", ATTRS{idProduct}=="1009", MODE="0666"' | sudo tee /etc/udev/rules.d/99-garmin.rules
-sudo usermod -a -G plugdev pi
+sudo usermod -a -G plugdev,bluetooth pi
 sudo udevadm control --reload-rules
-
-# System optimizations
-sudo usermod -a -G bluetooth pi
 sudo setcap cap_net_raw,cap_net_admin+eip "$(readlink -f $(which node))"
 
+# System optimizations
 cat <<EOF | sudo tee /etc/sysctl.d/99-bluetooth.conf
 kernel.sched_rt_runtime_us = 998000
 EOF
@@ -123,26 +121,25 @@ cat <<EOF | sudo tee /etc/logrotate.d/gymnasticon
 }
 EOF
 
-# Enable and start services
+# Start services
 echo "Starting services..."
 sudo systemctl daemon-reload
 sudo systemctl enable bluetooth gymnasticon
 sudo systemctl start bluetooth
 sleep 5
-sudo systemctl start gymnasticon
 
-if ! systemctl is-active --quiet gymnasticon; then
-    journalctl -u gymnasticon -n 50
-    exit 1
-fi
-
-# Verify installation
-echo "Verifying Gymnasticon service..."
-sleep 10
-if systemctl is-active --quiet gymnasticon; then
-    echo "Gymnasticon is running successfully."
+# Verify build path before starting service
+if [ -f "$INSTALL_DIR/lib/app/cli.js" ]; then
+    sudo systemctl start gymnasticon
+    sleep 10
+    if systemctl is-active --quiet gymnasticon; then
+        echo "Gymnasticon is running successfully."
+    else
+        echo "Gymnasticon failed to start. Check logs with: journalctl -u gymnasticon"
+        exit 1
+    fi
 else
-    echo "Gymnasticon failed to start. Check logs with: journalctl -u gymnasticon"
+    echo "Required files missing. Installation failed."
     exit 1
 fi
 
