@@ -2,7 +2,7 @@
 Description=Gymnasticon2
 After=bluetooth-init.service bluetooth.service network.target
 Requires=bluetooth-init.service bluetooth.service
-
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
@@ -17,6 +17,8 @@ Environment=DEBUG=gym:*
 Environment=NOBLE_HCI_DEVICE_ID=hci0
 Environment=BLENO_HCI_DEVICE_ID=hci0
 Environment=NOBLE_MULTI_ROLE=1
+StandardOutput=append:/var/log/gymnasticon.log
+StandardError=append:/var/log/gymnasticon.log
 SyslogIdentifier=gymnasticon
 AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
 NoNewPrivileges=no

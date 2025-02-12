@@ -29,6 +29,15 @@ echo "Installing system dependencies..."
 sudo apt-get update
 sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential curl xz-utils coreutils dphys-swapfile
 
+# Force stop and cleanup existing installation
+echo "Cleaning up any existing installation..."
+sudo systemctl stop gymnasticon || true
+sudo systemctl disable gymnasticon || true
+sudo rm -f /var/log/gymnasticon.log
+sudo rm -rf /opt/gymnasticon
+sudo rm -f /etc/systemd/system/gymnasticon.service
+sudo systemctl daemon-reload
+
 # Increase swap
 echo "Configuring swap space..."
 sudo sed -i 's/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=2048/' /etc/dphys-swapfile
