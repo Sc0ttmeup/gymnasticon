@@ -5,7 +5,15 @@ import {macAddress} from '../util/mac-address';
 import {createDropoutFilter} from '../util/dropout-filter';
 
 export const KEISER_LOCALNAME = "M3";
-const KEISER_VALUE_MAGIC = Buffer.from([0x02, 0x01]); // identifies Keiser data message
+// Define both old and new magic bytes
+const KEISER_VALUE_MAGIC_OLD = Buffer.from([0x02, 0x01]);
+const KEISER_VALUE_MAGIC_NEW = Buffer.from([0x03]);
+
+// Update the validation in parse() and bikeVersion() functions
+function isValidKeiserData(data) {
+    return data.indexOf(KEISER_VALUE_MAGIC_OLD) === 0 || 
+           data.indexOf(KEISER_VALUE_MAGIC_NEW) === 0;
+}
 const KEISER_VALUE_IDX_POWER = 10; // 16-bit power (watts) data offset within packet
 const KEISER_VALUE_IDX_CADENCE = 6; // 16-bit cadence (1/10 rpm) data offset within packet
 const KEISER_VALUE_IDX_REALTIME = 4; // Indicates whether the data present is realtime (0, or 128 to 227)
@@ -202,14 +210,14 @@ export function bikeVersion(data) {
  * @returns {object} message.payload - message payload
  */
 export function parse(data) {
-  if (data.indexOf(KEISER_VALUE_MAGIC) === 0) {
-    const realtime = data.readUInt8(KEISER_VALUE_IDX_REALTIME);
-    if (realtime === 0 || (realtime > 128 && realtime < 255)) {
-      // Realtime data received
-      const power = data.readUInt16LE(KEISER_VALUE_IDX_POWER);
-      const cadence = Math.round(data.readUInt16LE(KEISER_VALUE_IDX_CADENCE) / 10);
-      return {type: 'stats', payload: {power, cadence}};
-    }
+  if (isValidKeiserData(data)) {
+      // Rest of parsing logic remains the same
+      const realtime = data.readUInt8(KEISER_VALUE_IDX_REALTIME);
+      if (realtime === 0 || (realtime > 128 && realtime < 255)) {
+          const power = data.readUInt16LE(KEISER_VALUE_IDX_POWER);
+          const cadence = Math.round(data.readUInt16LE(KEISER_VALUE_IDX_CADENCE) / 10);
+          return {type: 'stats', payload: {power, cadence}};
+      }
   }
   throw new Error('unable to parse message');
 }
