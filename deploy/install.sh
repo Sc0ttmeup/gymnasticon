@@ -7,6 +7,12 @@ NODE_DISTRO="node-v${NODE_VERSION}-linux-armv6l"
 NODE_DOWNLOAD_URL="https://unofficial-builds.nodejs.org/download/release/v${NODE_VERSION}/${NODE_DISTRO}.tar.xz"
 INSTALL_DIR="/opt/gymnasticon"
 
+# Ensure the script is not run from inside the installation directory
+if [ "$PWD" = "$INSTALL_DIR" ]; then
+    echo "Current directory is $INSTALL_DIR. Changing to home directory to avoid conflicts..."
+    cd ~
+fi
+
 # Environment setup
 export NODE_OPTIONS="--max-old-space-size=512"
 export npm_config_build_from_source=true
@@ -65,15 +71,15 @@ sudo -u pi npm config set audit false
 sudo -u pi npm config set fund false
 sudo -u pi npm config set update-notifier false
 
-echo "Installing dependencies..."
+echo "Cleaning npm cache and removing old node_modules..."
 sudo rm -rf node_modules
 sudo -u pi npm cache clean --force
+
+echo "Installing dependencies..."
 sudo -u pi npm install --no-optional --unsafe-perm
 
 echo "Installing Bluetooth HCI socket dependency..."
-cd "$INSTALL_DIR"
 sudo -u pi npm install @abandonware/bluetooth-hci-socket --unsafe-perm
-
 
 echo "Building project..."
 sudo -u pi npm run build
@@ -104,7 +110,7 @@ sudo hciconfig hci0 up
 sudo btmgmt le on
 sudo bluetoothctl system-alias 'Gymnasticon2'
 
-# Configure USB and permissions
+# Configure USB permissions and groups
 echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="0fcf", ATTRS{idProduct}=="1009", MODE="0666"' | sudo tee /etc/udev/rules.d/99-garmin.rules
 sudo usermod -a -G plugdev,bluetooth pi
 sudo udevadm control --reload-rules
