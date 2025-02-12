@@ -85,7 +85,9 @@ sudo rm -rf node_modules
 sudo -H -u pi npm cache clean --force
 
 echo "Installing dependencies..."
-sudo -H -u pi npm install --no-optional --unsafe-perm
+npm install --no-optional --unsafe-perm --build-from-source
+
+
 
 echo "Installing Bluetooth HCI socket dependency..."
 sudo -H -u pi npm install @abandonware/bluetooth-hci-socket --unsafe-perm
