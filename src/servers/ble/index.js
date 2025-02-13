@@ -18,13 +18,22 @@ class GymnasticonServer extends BleServer {
    * Create a GymnasticonServer instance.
    * @param {Bleno} bleno - a Bleno instance.
    */
-  constructor(bleno, name = DEFAULT_NAME) {
-    bleno.setDeviceName(name); // Add this line before super()
-    super(bleno, name, [
+constructor(bleno, name = DEFAULT_NAME) {
+  // Replace direct call with Bleno's preferred method
+  if (bleno.state === 'poweredOn') {
+      bleno.startAdvertising(name);
+  } else {
+      bleno.once('stateChange', (state) => {
+          if (state === 'poweredOn') {
+              bleno.startAdvertising(name);
+          }
+      });
+  }
+  super(bleno, name, [
       new CyclingPowerService(),
       new CyclingSpeedAndCadenceService(),
-    ]);
-  }
+  ]);
+}
 
   /**
    * Notify subscriber (e.g. Zwift) of new Cycling Power Measurement.
