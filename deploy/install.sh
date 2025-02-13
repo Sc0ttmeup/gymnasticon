@@ -1,6 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
+# Record start time
+START_TIME=$(date +%s)
+
 # Configuration
 NODE_VERSION="14.21.3"
 NODE_DISTRO="node-v${NODE_VERSION}-linux-armv6l"
@@ -149,4 +152,12 @@ else
     exit 1
 fi
 
-echo "Installation complete. Check service status with: sudo systemctl status gymnasticon"
+echo "Installation complete. Check service status with: sudo systemctl status gymnasticon and cat /etc/systemd/system/gymnasticon.service
+ and journalctl -u gymnasticon -f and sudo hciconfig hci0 and sudo bluetoothctl and sudo hcitool lescan"
+
+
+# Record end time
+END_TIME=$(date +%s)
+DURATION=$((END_TIME - START_TIME))
+
+echo "Installation completed in ${DURATION} seconds."
