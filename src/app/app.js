@@ -1,7 +1,3 @@
-// File: lib/app/app.js
-// Folder: /opt/gymnasticon/lib/app/
-// Description: Main application class for Gymnasticon
-
 import noble from '@abandonware/noble';
 import bleno from '@abandonware/bleno';
 import { once } from 'events';
@@ -20,50 +16,40 @@ export { getBikeTypes };
 
 export const defaults = {
   // bike options
-  bike: 'autodetect', // bike type
-  bikeReceiveTimeout: 4, // timeout for receiving stats from bike
-  bikeConnectTimeout: 0, // timeout for establishing bike connection
-  bikeAdapter: 'hci0', // bluetooth adapter to use for bike connection (BlueZ only)
+  bike: 'autodetect',           // bike type
+  bikeReceiveTimeout: 4,        // timeout for receiving stats from bike
+  bikeConnectTimeout: 0,        // timeout for establishing bike connection
+  bikeAdapter: 'hci0',          // bluetooth adapter to use for bike connection (BlueZ only)
 
   // flywheel bike options
-  flywheelAddress: undefined, // mac address of bike
-  flywheelName: 'Flywheel 1', // name of bike
+  flywheelAddress: undefined,   // mac address of bike
+  flywheelName: 'Flywheel 1',   // name of bike
 
   // peloton bike options
-  pelotonPath: '/dev/ttyUSB0', // default path for usb to serial device
+  pelotonPath: '/dev/ttyUSB0',  // default path for usb to serial device
 
   // test bike options
-  botPower: 0, // power
-  botCadence: 0, // cadence
-  botHost: '0.0.0.0', // listen for udp message to update cadence/power
+  botPower: 0,                  // power
+  botCadence: 0,                // cadence
+  botHost: '0.0.0.0',          // listen for udp message to update cadence/power
   botPort: 3000,
 
   // server options
-  serverAdapter: 'hci0', // adapter for receiving connections from apps
-  serverName: 'Gymnasticon2', // how the Gymnasticon will appear to apps
-  serverPingInterval: 1, // send a power measurement update at least this often
+  serverAdapter: 'hci0',        // adapter for receiving connections from apps
+  serverName: 'Gymnasticon2',   // how the Gymnasticon will appear to apps
+  serverPingInterval: 1,        // send a power measurement update at least this often
 
   // ANT+ server options
-  antDeviceId: 11234, // random default ANT+ device id
+  antDeviceId: 11234,          // random default ANT+ device id
 
   // power adjustment (to compensate for inaccurate power measurements on bike)
-  powerScale: 1.0, // multiply power by this
-  powerOffset: 0.0, // add this to power
+  powerScale: 1.0,             // multiply power by this
+  powerOffset: 0.0,            // add this to power
 };
 
-/**
- * Gymnasticon App.
- *
- * Converts the Flywheel indoor bike's non-standard data protocol into the
- * standard Bluetooth Cycling Power Service so the bike can be used with
- * apps like Zwift.
- */
 export class App {
-  /**
-   * Create an App instance.
-   */
   constructor(options = {}) {
-    // Bind all callback methods first to ensure they are defined
+    // Bind all callback methods first
     this.onAntStickStartup = this.onAntStickStartup.bind(this);
     this.onSigInt = this.onSigInt.bind(this);
     this.onExit = this.onExit.bind(this);
@@ -71,13 +57,15 @@ export class App {
     this.onBikeStatsTimeout = this.onBikeStatsTimeout.bind(this);
     this.onBikeConnectTimeout = this.onBikeConnectTimeout.bind(this);
     this.onPedalStroke = this.onPedalStroke.bind(this);
+    this.onBikeStats = this.onBikeStats.bind(this);
+    this.onBikeDisconnect = this.onBikeDisconnect.bind(this);
 
-    // Merge options with defaults.
     const opts = { ...defaults, ...options };
 
     this.power = 0;
     this.crank = { revolutions: 0, timestamp: -Infinity };
 
+    // Configure Bluetooth adapters
     process.env['NOBLE_HCI_DEVICE_ID'] = opts.bikeAdapter;
     process.env['BLENO_HCI_DEVICE_ID'] = opts.serverAdapter;
     if (opts.bikeAdapter === opts.serverAdapter) {
@@ -89,53 +77,91 @@ export class App {
     this.simulation = new Simulation();
     this.server = new GymnasticonServer(bleno, opts.serverName);
 
+    // Initialize ANT+ components
     this.antStick = createAntStick(opts);
     this.antServer = new AntServer(this.antStick, { deviceId: opts.antDeviceId });
-    // Register the already bound method
     this.antStick.on('startup', this.onAntStickStartup);
 
+    // Setup timers
     this.pingInterval = new Timer(opts.serverPingInterval);
     this.statsTimeout = new Timer(opts.bikeStatsTimeout, { repeats: false });
     this.connectTimeout = new Timer(opts.bikeConnectTimeout, { repeats: false });
     this.powerScale = opts.powerScale;
     this.powerOffset = opts.powerOffset;
 
+    // Connect timer events
     this.pingInterval.on('timeout', this.onPingInterval);
     this.statsTimeout.on('timeout', this.onBikeStatsTimeout);
     this.connectTimeout.on('timeout', this.onBikeConnectTimeout);
     this.simulation.on('pedal', this.onPedalStroke);
   }
 
-  onAntStickStartup() {
-    this.logger.log('ANT+ stick started');
-    // Delay calling startAnt() to give the stick time to be fully recognized
-    setTimeout(() => {
-      this.startAnt();
-    }, 3000); // 3-second delay; adjust as needed
-  }
-  
-
   async run() {
-    const [state] = await once(noble, 'stateChange');
-    if (state !== 'poweredOn') {
-      throw new Error(`Bluetooth adapter state: ${state}`);
+    try {
+      process.on('SIGINT', this.onSigInt);
+      process.on('exit', this.onExit);
+
+      const [state] = await once(noble, 'stateChange');
+      if (state !== 'poweredOn') {
+        throw new Error(`Bluetooth adapter state: ${state}`);
+      }
+
+      this.logger.log('connecting to bike...');
+      this.bike = await createBikeClient(this.opts, noble);
+      this.bike.on('disconnect', this.onBikeDisconnect);
+      this.bike.on('stats', this.onBikeStats);
+      
+      this.connectTimeout.reset();
+      await this.bike.connect();
+      this.connectTimeout.cancel();
+      
+      this.logger.log(`bike connected ${this.bike.address}`);
+      await this.server.start();
+      this.startAnt();
+      
+      this.pingInterval.reset();
+      this.statsTimeout.reset();
+    } catch (e) {
+      this.logger.error(e);
+      process.exit(1);
     }
-    this.server.start();
-    this.startAnt();
+  }
+
+  startAnt() {
+    if (!this.antStick.is_present()) {
+      this.logger.log('no ANT+ stick found');
+      return false;
+    }
+    if (!this.antStick.open()) {
+      this.logger.error('failed to open ANT+ stick');
+      return false;
+    }
+    this.logger.log('ANT+ stick found and opened');
+    return true;
+  }
+
+  onAntStickStartup() {
+    this.logger.log('ANT+ stick initialized');
+    try {
+      this.antServer.start();
+      this.logger.log('ANT+ server started successfully');
+    } catch (error) {
+      this.logger.error(`Failed to start ANT+ server: ${error.message}`);
+    }
   }
 
   onPedalStroke(timestamp) {
     this.pingInterval.reset();
     this.crank.timestamp = timestamp;
     this.crank.revolutions++;
-    let { power, crank } = this;
+    const { power, crank } = this;
     this.logger.log(`pedal stroke [timestamp=${timestamp} revolutions=${crank.revolutions} power=${power}W]`);
     this.server.updateMeasurement({ power, crank });
   }
 
   onPingInterval() {
     debuglog(`pinging app since no stats or pedal strokes for ${this.pingInterval.interval}s`);
-    let { power, crank } = this;
+    const { power, crank } = this;
     this.server.updateMeasurement({ power, crank });
   }
 
@@ -145,7 +171,7 @@ export class App {
     this.statsTimeout.reset();
     this.power = power;
     this.simulation.cadence = cadence;
-    let { crank } = this;
+    const { crank } = this;
     this.server.updateMeasurement({ power, crank });
     this.antServer.updateMeasurement({ power, cadence });
   }
@@ -163,19 +189,6 @@ export class App {
   onBikeConnectTimeout() {
     this.logger.log(`bike connection timed out after ${this.connectTimeout.interval}s`);
     process.exit(1);
-  }
-
-  startAnt() {
-    if (!this.antStick.is_present()) {
-      this.logger.log('no ANT+ stick found');
-      return;
-    }
-    if (!this.antStick.open()) {
-      this.logger.error('failed to open ANT+ stick');
-      return;
-    }
-    this.logger.log('ANT+ stick opened successfully');
-    this.antServer.start();
   }
 
   stopAnt() {

@@ -19,6 +19,7 @@ class GymnasticonServer extends BleServer {
    * @param {Bleno} bleno - a Bleno instance.
    */
   constructor(bleno, name = DEFAULT_NAME) {
+    bleno.setDeviceName(name); // Add this line before super()
     super(bleno, name, [
       new CyclingPowerService(),
       new CyclingSpeedAndCadenceService(),

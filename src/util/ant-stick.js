@@ -7,9 +7,7 @@ export function createAntStick() {
     stick = new Ant.GarminStick2; // 0fcf:1008
   }
 
-  if (!stick.open()) {
-    throw new Error('Failed to open ANT+ stick');
-  }
+ 
 
   return stick;
 }
