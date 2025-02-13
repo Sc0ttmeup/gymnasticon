@@ -22,10 +22,17 @@ if ! grep -q "Raspberry Pi" /proc/cpuinfo; then
     exit 1
 fi
 
-if ! command -v hciconfig >/dev/null 2>&1 || ! hciconfig | grep -q "hci0"; then
-    echo "No Bluetooth adapter (hci0) found"
-    exit 1
+# Bluetooth checks and setup
+if ! command -v hciconfig >/dev/null 2>&1; then
+    echo "Installing bluetooth tools..."
+    sudo apt-get update
+    sudo apt-get install -y bluetooth bluez
 fi
+
+# Reset Bluetooth adapter
+sudo hciconfig hci0 down
+sudo hciconfig hci0 up
+sudo systemctl restart bluetooth
 
 # System preparation
 echo "Installing system dependencies..."
@@ -99,10 +106,9 @@ sudo cp "${INSTALL_DIR}/deploy/gymnasticon.service" /etc/systemd/system/
 cat <<'EOF' | sudo tee /etc/bluetooth/main.conf
 [General]
 ControllerMode = le
+Privacy = off
 EOF
 
-sudo hciconfig hci0 down
-sudo hciconfig hci0 up
 sudo btmgmt le on
 sudo bluetoothctl system-alias 'Gymnasticon2'
 sudo hciconfig hci0 name 'Gymnasticon2'
@@ -138,6 +144,7 @@ sudo systemctl enable bluetooth gymnasticon
 sudo systemctl start bluetooth
 sleep 5
 
+# Verify installation
 if [ -f "$INSTALL_DIR/lib/app/cli.js" ]; then
     sudo systemctl start gymnasticon
     sleep 10
@@ -152,12 +159,12 @@ else
     exit 1
 fi
 
-echo "Installation complete. Check service status with: sudo systemctl status gymnasticon and cat /etc/systemd/system/gymnasticon.service
- and journalctl -u gymnasticon -f and sudo hciconfig hci0 and sudo bluetoothctl and sudo hcitool lescan"
-
-
-# Record end time
+# Record end time and show completion message
 END_TIME=$(date +%s)
 DURATION=$((END_TIME - START_TIME))
 
 echo "Installation completed in ${DURATION} seconds."
+echo "Verify installation with:"
+echo "- sudo systemctl status gymnasticon"
+echo "- journalctl -u gymnasticon -f"
+echo "- sudo hcitool lescan"
