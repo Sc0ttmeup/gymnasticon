@@ -108,8 +108,12 @@ export class App {
 
   onAntStickStartup() {
     this.logger.log('ANT+ stick started');
-    // Add any necessary startup logic here
+    // Delay calling startAnt() to give the stick time to be fully recognized
+    setTimeout(() => {
+      this.startAnt();
+    }, 3000); // 3-second delay; adjust as needed
   }
+  
 
   async run() {
     const [state] = await once(noble, 'stateChange');
