@@ -102,6 +102,9 @@ sudo hciconfig hci0 down
 sudo hciconfig hci0 up
 sudo btmgmt le on
 sudo bluetoothctl system-alias 'Gymnasticon2'
+sudo hciconfig hci0 name 'Gymnasticon2'
+sudo systemctl restart bluetooth
+sleep 2
 
 # USB permissions
 echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="0fcf", ATTRS{idProduct}=="1009", MODE="0666"' | sudo tee /etc/udev/rules.d/99-garmin.rules
