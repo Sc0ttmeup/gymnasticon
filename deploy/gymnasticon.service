@@ -1,7 +1,9 @@
 [Unit]
 Description=Gymnasticon2
-After=bluetooth-init.service bluetooth.service network.target
-Requires=bluetooth-init.service bluetooth.service
+#After=bluetooth-init.service bluetooth.service network.target
+After=bluetooth.service network.target
+#Requires=bluetooth-init.service bluetooth.service
+Requires=bluetooth.service
 StartLimitIntervalSec=0
 
 [Service]
