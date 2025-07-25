@@ -109,7 +109,8 @@ sudo cp "${INSTALL_DIR}/deploy/gymnasticon.service" /etc/systemd/system/
 # Configure Bluetooth
 cat <<'EOF' | sudo tee /etc/bluetooth/main.conf
 [General]
-ControllerMode = le
+#ControllerMode = le
+ControllerMode = dual
 Privacy = off
 EOF
 
