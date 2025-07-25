@@ -40,6 +40,8 @@ fi
 
 # Reset Bluetooth adapter
 sudo hciconfig hci0 down
+modprobe -r btusb
+modprobe btusb
 sudo hciconfig hci0 up
 sudo systemctl restart bluetooth
 
@@ -56,12 +58,6 @@ sudo rm -f /var/log/gymnasticon.log
 sudo rm -rf "$INSTALL_DIR"
 sudo rm -f /etc/systemd/system/gymnasticon.service
 sudo systemctl daemon-reload
-
-# Increase swap
-#echo "Configuring swap space..."
-#sudo sed -i 's/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=2048/' /etc/dphys-swapfile
-#sudo /etc/init.d/dphys-swapfile restart
-#sleep 5
 
 # Install Node.js
 echo "Installing Node.js ${NODE_VERSION}..."
@@ -106,12 +102,6 @@ fi
 # Reset ownership
 sudo chown -R "$INSTALL_DIR_OWNER:$INSTALL_DIR_GROUP" "$INSTALL_DIR"
 
-# Restore swap
-#echo "Restoring swap configuration..."
-#sudo sed -i 's/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=100/' /etc/dphys-swapfile
-#sudo /etc/init.d/dphys-swapfile restart
-#sleep 3
-
 # Service setup
 echo "Installing service files..."
 sudo cp "${INSTALL_DIR}/deploy/gymnasticon.service" /etc/systemd/system/
@@ -122,12 +112,6 @@ cat <<'EOF' | sudo tee /etc/bluetooth/main.conf
 ControllerMode = le
 Privacy = off
 EOF
-
-# Reload bluetooth usb kernel module
-hciconfig hci0 down
-modprobe -r btusb
-modprobe btusb
-hciconfig hci0 up
 
 sudo btmgmt le on
 sudo bluetoothctl system-alias 'Gymnasticon2'
