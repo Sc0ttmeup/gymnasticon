@@ -105,7 +105,6 @@ sudo chown -R "$INSTALL_DIR_OWNER:$INSTALL_DIR_GROUP" "$INSTALL_DIR"
 # Service setup
 echo "Installing service files..."
 sudo cp "${INSTALL_DIR}/deploy/gymnasticon.service" /etc/systemd/system/
-sudp cp "${INSTALL_DIR}/deploy/bluetooth-init.service" /etc/systemd/system/
 
 # Configure Bluetooth
 cat <<'EOF' | sudo tee /etc/bluetooth/main.conf
@@ -152,7 +151,7 @@ EOF
 # Start services
 echo "Starting services..."
 sudo systemctl daemon-reload
-sudo systemctl enable bluetooth bluetooth-init gymnasticon
+sudo systemctl enable bluetooth gymnasticon
 sudo systemctl start bluetooth
 sleep 5
 
