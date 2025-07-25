@@ -1,1 +1,12 @@
+[Unit]
+Description=Initialize Bluetooth Adapter
+After=bluetooth.service
+Requires=bluetooth.service
 
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/bt-adapter -s Powered on
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
