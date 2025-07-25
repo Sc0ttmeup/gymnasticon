@@ -123,6 +123,12 @@ ControllerMode = le
 Privacy = off
 EOF
 
+# Reload bluetooth usb kernel module
+hciconfig hci0 down
+modprobe -r btusb
+modprobe btusb
+hciconfig hci0 up
+
 sudo btmgmt le on
 sudo bluetoothctl system-alias 'Gymnasticon2'
 sudo hciconfig hci0 name 'Gymnasticon2'
