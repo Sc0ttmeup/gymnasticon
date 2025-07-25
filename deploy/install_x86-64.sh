@@ -34,7 +34,7 @@ fi
 if ! command -v hciconfig >/dev/null 2>&1; then
     echo "Installing bluetooth tools..."
     sudo apt-get update
-    sudo apt-get install -y bluetooth bluez
+    sudo apt-get install -y bluetooth bluez bluez-tools
 fi
 
 # Reset Bluetooth adapter
@@ -47,7 +47,7 @@ sudo systemctl restart bluetooth
 # System preparation
 echo "Installing system dependencies..."
 sudo apt-get update
-sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential curl xz-utils coreutils bluez-tools #dphys-swapfile
+sudo apt-get install -y git libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential curl xz-utils coreutils #dphys-swapfile
 
 # Clean existing installation
 echo "Cleaning up any existing installation..."
