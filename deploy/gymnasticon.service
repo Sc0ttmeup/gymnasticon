@@ -12,8 +12,8 @@ ExecStart=/usr/bin/node /opt/gymnasticon/lib/app/cli.js
 WorkingDirectory=/opt/gymnasticon
 Restart=always
 RestartSec=10
-User=pi
-Group=pi
+User=root
+Group=root
 Environment=NODE_ENV=production
 Environment=DEBUG=gym:*
 Environment=NOBLE_HCI_DEVICE_ID=hci0
