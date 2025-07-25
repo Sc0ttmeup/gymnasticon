@@ -12,24 +12,23 @@ fi
 START_TIME=$(date +%s)
 
 # Configuration
-NODE_VERSION="12.22.12"
-#NODE_VERSION="14.21.3"
+#NODE_VERSION="12.22.12" #Original gymnasticon installer version
+NODE_VERSION="14.21.3" # 4o4R script version
 NODE_DISTRO="node-v${NODE_VERSION}-linux-x64"
-#NODE_DOWNLOAD_URL="https://unofficial-builds.nodejs.org/download/release/v${NODE_VERSION}/${NODE_DISTRO}.tar.xz"
 NODE_DOWNLOAD_URL="https://nodejs.org/dist/v${NODE_VERSION}/${NODE_DISTRO}.tar.xz"
 INSTALL_DIR="/opt/gymnasticon"
 
 # Environment setup
-export NODE_OPTIONS="--max-old-space-size=512"
+#export NODE_OPTIONS="--max-old-space-size=512"
 export npm_config_build_from_source=true
 export DEBUG=gym:*
 export MAKEFLAGS=-j1
 
 # System checks
-#if ! grep -q "Raspberry Pi" /proc/cpuinfo; then
-#    echo "This script must be run on a Raspberry Pi"
-#    exit 1
-#fi
+if ! /usr/bin/uname -m | grep -q "x86_64"; then
+    echo "This script must be run on x86-64"
+    exit 1
+fi
 
 # Bluetooth checks and setup
 if ! command -v hciconfig >/dev/null 2>&1; then
@@ -40,15 +39,15 @@ fi
 
 # Reset Bluetooth adapter
 sudo hciconfig hci0 down
-modprobe -r btusb
-modprobe btusb
+sudo /usr/sbin/modprobe -r btusb
+sudo /usr/sbin/modprobe btusb
 sudo hciconfig hci0 up
 sudo systemctl restart bluetooth
 
 # System preparation
 echo "Installing system dependencies..."
 sudo apt-get update
-sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential curl xz-utils coreutils #dphys-swapfile
+sudo apt-get install -y git bluetooth bluez libbluetooth-dev libudev-dev libusb-1.0-0-dev build-essential curl xz-utils coreutils bluez-tools #dphys-swapfile
 
 # Clean existing installation
 echo "Cleaning up any existing installation..."
@@ -72,7 +71,8 @@ sudo ln -sf /usr/local/bin/npm /usr/bin/npm
 
 # Install Gymnasticon
 echo "Installing Gymnasticon..."
-sudo git clone --depth 1 https://github.com/4o4R/gymnasticon.git "$INSTALL_DIR"
+#sudo git clone --depth 1 https://github.com/4o4R/gymnasticon.git "$INSTALL_DIR"
+sudo git clone --depth 1 https://github.com/Sc0ttmeup/gymnasticon.git "$INSTALL_DIR" -b x86-64-Buster --single-branch
 INSTALL_DIR_OWNER=$(stat -c '%U' "$INSTALL_DIR")
 INSTALL_DIR_GROUP=$(stat -c '%G' "$INSTALL_DIR")
 sudo chown -R root:root "$INSTALL_DIR"
@@ -105,6 +105,7 @@ sudo chown -R "$INSTALL_DIR_OWNER:$INSTALL_DIR_GROUP" "$INSTALL_DIR"
 # Service setup
 echo "Installing service files..."
 sudo cp "${INSTALL_DIR}/deploy/gymnasticon.service" /etc/systemd/system/
+sudp cp "${INSTALL_DIR}/deploy/bluetooth-init.service" /etc/systemd/system/
 
 # Configure Bluetooth
 cat <<'EOF' | sudo tee /etc/bluetooth/main.conf
@@ -112,6 +113,13 @@ cat <<'EOF' | sudo tee /etc/bluetooth/main.conf
 ControllerMode = le
 Privacy = off
 EOF
+
+# Reset Bluetooth adapter
+sudo hciconfig hci0 down
+sudo /usr/sbin/modprobe -r btusb
+sudo /usr/sbin/modprobe btusb
+sudo hciconfig hci0 up
+sleep 2
 
 sudo btmgmt le on
 sudo bluetoothctl system-alias 'Gymnasticon2'
