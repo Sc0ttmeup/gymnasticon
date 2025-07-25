@@ -152,7 +152,7 @@ EOF
 # Start services
 echo "Starting services..."
 sudo systemctl daemon-reload
-sudo systemctl enable bluetooth gymnasticon
+sudo systemctl enable bluetooth bluetooth-init gymnasticon
 sudo systemctl start bluetooth
 sleep 5
 
