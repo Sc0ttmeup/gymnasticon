@@ -2,8 +2,8 @@
 set -euo pipefail
 
 if [[ $(/usr/bin/id -u) -eq 0 ]]; then
-    echo "WARNING: This will configure the root user to run the program."
-    echo "If you have a regular user account it is recommended to run the installer from that account instead."
+    echo "WARNING: Running as root"
+    echo "If you have a regular user account you would prefer to be able to run gymnasticon please install using that account instead."
     read -rsp $'Press Ctrl+C to quit or any other key to continue\n' -n1 key
     echo 'Continuing'
 fi
